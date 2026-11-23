@@ -36,6 +36,7 @@ type screen struct {
 	w         *bufio.Writer
 	prev      []string
 	pw, ph    int
+	down      *downsampler // set when the terminal cannot show 24-bit color
 	closeOnce sync.Once
 }
 
@@ -46,6 +47,9 @@ func openScreen() (*screen, error) {
 		return nil, err
 	}
 	s.restore = st
+	if detectColorDepth(os.Getenv) == color256 {
+		s.down = newDownsampler()
+	}
 	s.w = bufio.NewWriterSize(s.out, frameBufSize)
 	s.w.WriteString(enterSeq)
 	s.w.Flush()
@@ -91,7 +95,11 @@ func (s *screen) frame(lines []string, w, h int, cur cursor) {
 		if i < len(s.prev) && s.prev[i] == l {
 			continue
 		}
-		fmt.Fprintf(s.w, "\x1b[%d;1H%s\x1b[0m", i+1, l)
+		out := l
+		if s.down != nil {
+			out = s.down.line(l)
+		}
+		fmt.Fprintf(s.w, "\x1b[%d;1H%s\x1b[0m", i+1, out)
 	}
 	if cur.show {
 		fmt.Fprintf(s.w, "\x1b[%d;%dH\x1b[?25h", cur.y+1, cur.x+1)

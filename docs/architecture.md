@@ -88,6 +88,11 @@ before each frame, which is also where pane resizes are sent from.
 
 ## Moving a session into a pane
 
+A process cannot be handed from the terminal app to cockpit alive: its terminal belongs to the app that
+opened it. Moving a session therefore means stopping it and resuming the conversation, which is safe
+between turns. When the session is working or waiting for an answer, the move is scheduled instead and
+runs on the first collection pass that finds it idle; a stuck session is moved at once.
+
 `⏎` (or `p`) on a Claude Code or Codex card running in a terminal tab asks first, then:
 
 1. builds the resume command (`claude --resume <id>` with the session's profile, or `codex resume <id>`);

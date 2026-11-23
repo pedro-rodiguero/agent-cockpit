@@ -46,6 +46,8 @@ own, shows each one as a card with its live conversation, and sorts what needs y
   offers to continue it in cockpit: once you confirm, the agent in the tab stops and the same
   conversation resumes in a pane, in the same directory and with the same Claude profile, so memory,
   skills, hooks and MCP servers are the ones the session already had. You are typing into it right away.
+  A session that is mid-turn or waiting for an answer is not cut off: it moves when its turn ends, and the
+  card says so until then (`⏎` on it again cancels).
 - **Talks back without moving anything.** `o` jumps to a session's Terminal.app or iTerm2 tab; `r` sends a
   message to a Claude Code session without leaving the dashboard.
 - **Labels your tabs.** Each terminal tab's title shows its session's state and name (`t` toggles it).

@@ -8,17 +8,17 @@ for twenty minutes, or which one finished while you were elsewhere. cockpit find
 own, shows each one as a card with its live conversation, and sorts what needs you to the top.
 
 ```
- ◆ AGENT COCKPIT  grid 2×1                                                              14:32:07
+ ◆ AGENT COCKPIT  grid 2×1                                                                 14:32:07 
  ▲ 1 waiting   ✕ 0 stuck?   ✉ 0 inbox   ● 1 working   ○ 0 idle   ◧ 0 panes
-╭ ▲ api-auth ──────────────── claude · s004 · 1 ╮╭ ● web-next ──────────── claude work · s007 · 2 ╮
-│ ~/src/api  ⎇ feat/limits   opus-5-5 · 212k ctx ││ ~/src/web  ⎇ main          opus-5-5 · 88k ctx │
+╭ ▲ api-auth ───────────────── claude · s004 · 1 ╮╭ ● web-next ──────────── claude work · s007 · 2 ╮
+│ ~/src/api  ⎇ feat/limits   opus-5-5 · 212k ctx ││ ~/src/web  ⎇ main           opus-5-5 · 88k ctx │
 │ Rate limiting for the login route              ││ Flaky snapshot tests                           │
 │ › add rate limiting to the login route         ││ › why do the auth snapshots fail on CI?        │
 │ ⏺ Edit ~/src/api/limits.ts                     ││ · 6 tool calls                                 │
 │ Done. Want me to wire it into the gateway?     ││ ⏺ Read ~/src/web/test/auth.snap                │
 │                                                ││ Two snapshots depend on the clock.             │
-│ ▲ waiting 2m · permission prompt        plan  ││ ● working 14m · Bash npm test -- auth    high │
-╰ ⏎ go to tab · p to pane · r reply · z zoom ────╯╰────────────────────────────────────────────────╯
+│ ▲ waiting 2m · permission prompt          plan ││ ● working 14m · Bash npm test -- auth     high │
+╰ ⏎ continue here · o go to tab · r reply ───────╯╰────────────────────────────────────────────────╯
 ```
 
 ## What it does
@@ -42,11 +42,12 @@ own, shows each one as a card with its live conversation, and sorts what needs y
 - **Runs agents in panes.** `n` starts Claude Code, Codex, agy or a shell inside a card: a real
   interactive terminal. The panes belong to a small background server (`cockpit serve`), so they keep
   running after you close the dashboard and come back when you reopen it.
-- **Moves a session into a pane.** `p` stops a Claude Code or Codex session in its terminal tab and
-  resumes the same conversation in a pane, in the same directory and with the same Claude profile, so
-  memory, skills, hooks and MCP servers are the ones the session already had.
-- **Talks back.** `⏎` jumps to a session's Terminal.app or iTerm2 tab; `r` sends a message to a Claude
-  Code session without leaving the dashboard.
+- **Continues any session here.** `⏎` on a Claude Code or Codex session running in a terminal tab
+  offers to continue it in cockpit: once you confirm, the agent in the tab stops and the same
+  conversation resumes in a pane, in the same directory and with the same Claude profile, so memory,
+  skills, hooks and MCP servers are the ones the session already had. You are typing into it right away.
+- **Talks back without moving anything.** `o` jumps to a session's Terminal.app or iTerm2 tab; `r` sends a
+  message to a Claude Code session without leaving the dashboard.
 - **Labels your tabs.** Each terminal tab's title shows its session's state and name (`t` toggles it).
 - **Menu bar app (optional).** `◆ ▲1 ●3` in the menu bar, a list of sessions, and a macOS notification
   when a session starts waiting, looks stuck, or finishes a turn that took more than a minute.
@@ -81,10 +82,10 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 | key | action |
 |-----|--------|
 | `←↑↓→` `hjkl` | move · `tab` next · `1`–`9` card on this page · `[` `]` page |
-| `⏎` | type into a pane · go to a session's tab · open an inbox item |
+| `⏎` | type into a pane · continue a tab's session here (asks first) · open an inbox item |
+| `o` | go to the session's terminal tab |
 | `ctrl-q` | leave a pane (every other key goes to the agent) |
 | `n` | new pane: `↑↓` picks the agent (one entry per Claude profile), `tab` completes the folder |
-| `p` | move a Claude Code or Codex session from its tab into a pane |
 | `r` | send a message to a Claude Code session |
 | `z` | zoom the selected card |
 | `x` | close a pane (stops its agent) |

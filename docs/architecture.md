@@ -88,7 +88,7 @@ before each frame, which is also where pane resizes are sent from.
 
 ## Moving a session into a pane
 
-`p` on a Claude Code or Codex card:
+`⏎` (or `p`) on a Claude Code or Codex card running in a terminal tab asks first, then:
 
 1. builds the resume command (`claude --resume <id>` with the session's profile, or `codex resume <id>`);
 2. sends `SIGHUP` to the session's process, as closing its tab would, escalating to `SIGTERM` and

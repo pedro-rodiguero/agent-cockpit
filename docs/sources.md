@@ -88,7 +88,7 @@ type Source interface {
    focus the tab, and `Log` (with a parser in `internal/chat`) if the agent keeps a readable transcript.
 2. Register it in `Default()` in `internal/source/source.go`.
 3. If the agent can resume a session by id, add it to `resumeSpec` in `internal/tui/app.go` and to
-   `mux.Agents`, so `n` and `p` work for it.
+   `mux.Agents`, so `n` and `⏎` (continue here) work for it.
 4. Add tests with a small fixture of the agent's files, and list what you depend on in
    [compatibility.md](compatibility.md).
 

@@ -115,6 +115,15 @@ func (a *App) cardTop(t tile, cw int, border rgb, selected bool, num int) string
 	return pad(left+paint(border, cBg, strings.Repeat("─", max(0, fill)))+right+paint(border, cBg, "╮"), cw, cBg)
 }
 
+// isMovePending reports whether the tile's session is scheduled to move into a pane.
+func (a *App) isMovePending(t tile) bool {
+	if t.sess == nil {
+		return false
+	}
+	_, ok := a.pendingMoves[t.sess.ID]
+	return ok
+}
+
 // agentLabel names what runs in the card: the agent, its Claude profile, and whether it is a pane.
 func agentLabel(t tile) string {
 	label := t.agent()
@@ -205,7 +214,7 @@ func (a *App) sessionContent(t tile, iw, ih int) []string {
 	if text.lastPrompt != "" && ih >= minRowsForPrompt && len(text.rows)-text.lastPromptRow > room {
 		head = append(head, promptRow(text.lastPrompt, iw))
 	}
-	return stack(ih, head, text.rows, stateBar(t, conv.Info, iw, now))
+	return stack(ih, head, text.rows, stateBar(t, conv.Info, iw, now, a.isMovePending(t)))
 }
 
 // stack fills h rows with head at the top, foot at the bottom, and the end of body between them.
@@ -310,11 +319,13 @@ func tokens(n int) string {
 
 // stateBar says what a session is doing right now: its state, for how long, and the running tool call;
 // permission mode and effort sit on the right.
-func stateBar(t tile, info chat.Info, w int, now time.Time) string {
+func stateBar(t tile, info chat.Info, w int, now time.Time, movePending bool) string {
 	s := t.sess
 	l := look(s.State)
 	left := paintBold(l.color, cPanel, " "+l.glyph+" "+l.label) + paint(l.color, cPanel, " "+ago(since(t), now))
-	if detail := stateDetail(*s, info); detail != "" {
+	if movePending {
+		left += paint(cFaint, cPanel, " · ") + paint(cGoldHi, cPanel, "moves here when this turn ends")
+	} else if detail := stateDetail(*s, info); detail != "" {
 		left += paint(cFaint, cPanel, " · ") + paint(cSoft, cPanel, detail)
 	}
 	var fields []string

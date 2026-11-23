@@ -91,9 +91,10 @@ type App struct {
 	opts      Options
 	launchers []launcher
 	col       *source.Collector
-	chats     chat.Reader            // used by the collect goroutine only
-	mc        paneServer             // nil when the pane server could not be reached
-	focus     func(tty string) error // brings a terminal tab to the front; term.Focus outside tests
+	chats     chat.Reader               // used by the collect goroutine only
+	mc        paneServer                // nil when the pane server could not be reached
+	focus     func(tty string) error    // brings a terminal tab to the front; term.Focus outside tests
+	stop      func(model.Session) error // stops a session's agent before it is resumed in a pane
 	muxErr    string
 
 	snap  model.Snapshot
@@ -117,6 +118,7 @@ type App struct {
 	shownLabels   map[string]string
 	resized       map[string][2]int // pane ID → the size last requested for it
 	pendingResume string            // how to resume a moved session by hand, until its pane exists
+	pendingMoves  map[string]int    // session ID → pid of sessions to move into a pane when their turn ends
 	flash         flash
 
 	scr        *screen
@@ -135,6 +137,7 @@ func newApp(col *source.Collector, opts Options) *App {
 		col:       col,
 		launchers: launchers(),
 		focus:     term.Focus,
+		stop:      func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
 		resized:   map[string][2]int{},
 		events:    make(chan event, eventBuffer),
 		done:      make(chan struct{}),
@@ -347,6 +350,7 @@ func (a *App) handle(ev event) {
 		a.snap, a.convs = ev.snap, ev.chats
 		a.rebuild()
 		a.updateLabels()
+		a.runPendingMoves()
 	case evPanes:
 		a.muxPending.Store(false)
 		a.rebuild()

@@ -69,14 +69,14 @@ func TestStateBarPrefersTheRunningToolOverModeAndEffort(t *testing.T) {
 	now := time.Now()
 	busy := sessionTile(model.Session{ID: "s", State: model.Busy, Since: now.Add(-2 * time.Minute)})
 	info := chat.Info{Activity: "Bash npm run test -- auth", Running: 3, Mode: "plan", Effort: "high"}
-	if got := plain([]string{stateBar(busy, info, 70, now)})[0]; got != " ● working 2m · Bash npm run test -- auth  +2 more"+strings.Repeat(" ", 8)+"plan · high" {
+	if got := plain([]string{stateBar(busy, info, 70, now, false)})[0]; got != " ● working 2m · Bash npm run test -- auth  +2 more"+strings.Repeat(" ", 8)+"plan · high" {
 		t.Errorf("wide: %q", got)
 	}
-	if got := plain([]string{stateBar(busy, info, 54, now)})[0]; got != " ● working 2m · Bash npm run test -- auth  +2 more" {
+	if got := plain([]string{stateBar(busy, info, 54, now, false)})[0]; got != " ● working 2m · Bash npm run test -- auth  +2 more" {
 		t.Errorf("narrow keeps the activity whole: %q", got)
 	}
 	waiting := sessionTile(model.Session{ID: "s", State: model.Waiting, Detail: "permission prompt", Since: now.Add(-30 * time.Second)})
-	if got := plain([]string{stateBar(waiting, chat.Info{}, 60, now)})[0]; got != " ▲ waiting 30s · permission prompt" {
+	if got := plain([]string{stateBar(waiting, chat.Info{}, 60, now, false)})[0]; got != " ▲ waiting 30s · permission prompt" {
 		t.Errorf("waiting: %q", got)
 	}
 }

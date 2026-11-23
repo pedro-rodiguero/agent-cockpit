@@ -389,10 +389,14 @@ func (a *App) confirmClosePane() {
 // adopt moves a session running in a terminal tab into a pane: once confirmed, the tab's process is
 // stopped and the same conversation is resumed in a pane (same dir, same profile, so memory, skills and
 // MCP servers are the ones the session already had).
+//
+// The tab's process cannot be handed over alive (its terminal belongs to the terminal app), so moving
+// means stopping it. A session in the middle of a turn, or waiting for an answer, is therefore not
+// stopped right away: the move is scheduled and happens when the session is idle, so no work is lost.
 func (a *App) adopt() {
 	t, ok := a.selected()
 	if !ok || t.pane != nil || t.sess == nil {
-		a.say("p moves a session from a Terminal tab into a pane")
+		a.say("only sessions in a terminal tab can be continued here")
 		return
 	}
 	if a.muxUnavailable() {
@@ -402,26 +406,69 @@ func (a *App) adopt() {
 		a.say(err.Error())
 		return
 	}
-	id, pid := t.sess.ID, t.sess.PID
-	question := "continue " + t.name() + " here? its terminal tab stops and the conversation resumes in a pane." +
-		adoptWarning(t.sess.State) + " · y / n · o goes to the tab instead"
-	a.confirm(question, func() { a.moveIntoPane(id, pid) })
-	if t.sess.TTY != "" {
-		a.prompt.onO = func() { a.focusTab(t) }
-	} else {
-		a.prompt.label = strings.TrimSuffix(a.prompt.label, " · o goes to the tab instead")
+	id, pid, name := t.sess.ID, t.sess.PID, t.name()
+	if _, waiting := a.pendingMoves[id]; waiting {
+		a.confirm("cancel continuing "+name+" here? it stays in its tab · y / n", func() {
+			delete(a.pendingMoves, id)
+			a.say(name + " stays in its tab")
+		})
+		a.offerTab(t)
+		return
 	}
+	var question string
+	switch t.sess.State {
+	case model.Busy, model.Waiting:
+		question = "continue " + name + " here? it is " + look(t.sess.State).label +
+			": it moves when this turn ends, nothing is cut · y / n"
+	case model.Stuck:
+		question = "continue " + name + " here? it looks stuck: its current turn is cut off · y / n"
+	default:
+		question = "continue " + name + " here? its terminal tab stops and the conversation resumes in a pane · y / n"
+	}
+	a.confirm(question, func() { a.requestMove(id, pid, t.sess.State, name) })
+	a.offerTab(t)
 }
 
-// adoptWarning says what moving a session in state st loses.
-func adoptWarning(st model.State) string {
-	switch st {
-	case model.Busy, model.Stuck:
-		return " it is mid-turn: the turn is cut off."
-	case model.Waiting:
-		return " its pending question is dropped."
+// offerTab lets "o" answer the open question by going to the tile's terminal tab instead.
+func (a *App) offerTab(t tile) {
+	if t.sess.TTY == "" {
+		return
 	}
-	return ""
+	a.prompt.label += " · o goes to the tab instead"
+	a.prompt.onO = func() { a.focusTab(t) }
+}
+
+// requestMove moves the session now if it is between turns or stuck, and otherwise schedules the move
+// for when its turn ends.
+func (a *App) requestMove(id string, pid int, st model.State, name string) {
+	if !waitsForTurn(st) {
+		a.moveIntoPane(id, pid)
+		return
+	}
+	if a.pendingMoves == nil {
+		a.pendingMoves = map[string]int{}
+	}
+	a.pendingMoves[id] = pid
+	a.say(name + " moves here when this turn ends · ⏎ on it cancels")
+}
+
+// waitsForTurn reports whether a session in state st should finish its turn before it is moved.
+func waitsForTurn(st model.State) bool { return st == model.Busy || st == model.Waiting }
+
+// runPendingMoves moves every scheduled session whose turn has ended, and forgets the ones that went
+// away or changed process meanwhile.
+func (a *App) runPendingMoves() {
+	for id, pid := range a.pendingMoves {
+		s, err := adoptTarget(a.snap.Sessions, id, pid)
+		switch {
+		case err != nil:
+			delete(a.pendingMoves, id)
+			a.say("did not move " + firstOf(s.Name, id) + ": the session ended or restarted")
+		case !waitsForTurn(s.State):
+			delete(a.pendingMoves, id)
+			a.moveIntoPane(id, pid)
+		}
+	}
 }
 
 // moveIntoPane stops the session that was confirmed and resumes it in a pane, provided it is still the
@@ -440,8 +487,9 @@ func (a *App) moveIntoPane(id string, pid int) {
 	spec.Cols, spec.Rows = a.newPaneSize()
 	manual := resumeCommand(s)
 	a.say("moving " + s.Name + "…")
+	stop := a.stop
 	a.goSafe(func() {
-		if err := stopAgent(s, runsAgent, stopProcess); err != nil {
+		if err := stop(s); err != nil {
 			a.post(event{kind: evFlash, msg: "could not stop " + s.Name + ": " + err.Error()})
 			return
 		}

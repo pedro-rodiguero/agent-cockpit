@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -9,17 +10,28 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
-// fakeServer records what the dashboard sends instead of talking to `cockpit serve`.
+// fakeServer records what the dashboard sends instead of talking to `cockpit serve`. Like the real
+// client, it is safe to Send from any goroutine: moving a session sends from a background goroutine.
 type fakeServer struct {
+	mu    sync.Mutex
 	panes []mux.PaneInfo
 	sent  []mux.Msg
 }
 
-func (f *fakeServer) Send(m mux.Msg) error          { f.sent = append(f.sent, m); return nil }
-func (f *fakeServer) Panes() []mux.PaneInfo         { return f.panes }
-func (f *fakeServer) Screen(string) *mux.Screen     { return nil }
-func (f *fakeServer) Close() error                  { return nil }
-func (f *fakeServer) ops(op string) (out []mux.Msg) { return filterOps(f.sent, op) }
+func (f *fakeServer) Send(m mux.Msg) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sent = append(f.sent, m)
+	return nil
+}
+func (f *fakeServer) Panes() []mux.PaneInfo     { return f.panes }
+func (f *fakeServer) Screen(string) *mux.Screen { return nil }
+func (f *fakeServer) Close() error              { return nil }
+func (f *fakeServer) ops(op string) []mux.Msg {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return filterOps(f.sent, op)
+}
 
 func filterOps(ms []mux.Msg, op string) (out []mux.Msg) {
 	for _, m := range ms {
@@ -268,4 +280,97 @@ func TestEnterGoesToTheTabWhenTheSessionCannotMove(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("enter did not go to the tab")
 	}
+}
+
+// recordStops replaces stopping an agent with a record of which pids would have been stopped.
+func recordStops(a *App) chan int {
+	stopped := make(chan int, 4)
+	a.stop = func(s model.Session) error { stopped <- s.PID; return nil }
+	return stopped
+}
+
+func snapshot(a *App, sessions ...model.Session) {
+	a.handle(event{kind: evSnapshot, snap: model.Snapshot{Sessions: sessions}})
+}
+
+func TestContinuingABusySessionWaitsForItsTurnToEnd(t *testing.T) {
+	a, fs, _ := appWithTabSession()
+	stopped := recordStops(a)
+	busy := a.snap.Sessions[0]
+	busy.State = model.Busy
+	snapshot(a, busy)
+
+	press(a, "\r")
+	if !strings.Contains(a.prompt.label, "moves when this turn ends") {
+		t.Fatalf("question: %q", a.prompt.label)
+	}
+	press(a, "y")
+	snapshot(a, busy) // still working: nothing happens
+	select {
+	case pid := <-stopped:
+		t.Fatalf("stopped pid %d mid-turn", pid)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if !a.isMovePending(a.tiles[0]) {
+		t.Fatal("the move is not pending")
+	}
+
+	idle := busy
+	idle.State = model.Idle
+	snapshot(a, idle) // the turn ended: now it moves
+	select {
+	case pid := <-stopped:
+		if pid != 4321 {
+			t.Errorf("stopped pid %d", pid)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("did not move after the turn ended")
+	}
+	waitFor(t, func() bool { return len(fs.ops(mux.OpSpawn)) == 1 })
+	if spec := fs.ops(mux.OpSpawn)[0]; strings.Join(spec.Args, " ") != "--resume s1" || spec.Cwd != "/srv/api" {
+		t.Errorf("spawn = %+v", spec)
+	}
+	if len(a.pendingMoves) != 0 {
+		t.Error("the move stayed pending")
+	}
+}
+
+func TestPendingMoveCanBeCancelledAndIsDroppedWhenTheSessionEnds(t *testing.T) {
+	a, _, _ := appWithTabSession()
+	stopped := recordStops(a)
+	busy := a.snap.Sessions[0]
+	busy.State = model.Busy
+	snapshot(a, busy)
+
+	press(a, "\r", "y", "\r") // schedule, then enter again on the same card
+	if !strings.HasPrefix(a.prompt.label, "cancel continuing api here?") {
+		t.Fatalf("question: %q", a.prompt.label)
+	}
+	press(a, "y")
+	idle := busy
+	idle.State = model.Idle
+	snapshot(a, idle)
+	select {
+	case <-stopped:
+		t.Fatal("a cancelled move ran")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	press(a, "\r", "y") // idle now: it would move at once, so make it busy first
+	snapshot(a, busy)
+	press(a, "\r", "y")
+	snapshot(a) // the session ended in its tab
+	if len(a.pendingMoves) != 0 {
+		t.Fatal("a move for a session that ended stayed pending")
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	for end := time.Now().Add(time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+		if cond() {
+			return
+		}
+	}
+	t.Fatal("condition not met")
 }

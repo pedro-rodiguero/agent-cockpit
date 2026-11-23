@@ -1,0 +1,66 @@
+# Pane server protocol
+
+`cockpit serve` owns the panes. Each pane is a program running on a pseudo-terminal, with a VT emulator
+that keeps its screen. Dashboards connect to the server, draw the screens it sends, and forward the keys
+the person types. This file describes that connection; the Go types are in
+[`internal/mux/proto.go`](../internal/mux/proto.go).
+
+## Transport
+
+- A Unix socket at `~/Library/Caches/agent-cockpit/mux.sock`, mode `0600`, so only the user who
+  started the server can connect.
+- Each message is one JSON object followed by a newline, in both directions.
+- The dashboard starts the server when nothing answers on the socket (`cockpit serve`, in its own
+  session so it survives the terminal that started it). The server logs to `serve.log` next to the
+  socket and exits after ten minutes with no panes and no connected dashboards.
+
+## Messages
+
+Every message has an `op`; the other fields depend on it.
+
+### Dashboard to server
+
+| op | fields | effect |
+|----|--------|--------|
+| `attach` | | subscribe to updates; the server replies with `panes` and one `screen` per pane |
+| `spawn` | `agent`, `cwd`, `args`, `env`, `cols`, `rows` | start a pane; replies `spawned` or `error` |
+| `input` | `id`, `data` | write bytes to the pane's terminal (`data` is base64, as JSON encodes bytes) |
+| `paste` | `id`, `data` | paste text: wrapped in bracketed-paste markers only if the program enabled that mode |
+| `resize` | `id`, `cols`, `rows` | resize the pane; the program receives `SIGWINCH` |
+| `close` | `id` | `SIGHUP` the program (then `SIGKILL` after 3s) and drop the pane |
+
+`agent` is one of `claude`, `codex`, `agy`, `shell`. The program runs through the user's login shell
+(`$SHELL -lc`), so it sees the same `PATH` as in a new terminal tab. `env` entries (`KEY=value`) are
+added to its environment; variables that identify the process that started the server, such as Claude
+Code's session markers, are removed first.
+
+### Server to dashboard
+
+| op | fields | when |
+|----|--------|------|
+| `panes` | `panes` | on attach and whenever the list or a pane's title, size or exit status changes |
+| `screen` | `screen` | on attach and whenever a pane's screen changes, at most about 30 times a second |
+| `spawned` | `id` | reply to `spawn` |
+| `error` | `err` | reply to a request that failed |
+
+A `screen` carries the visible rows only. Each row is a string exactly `cols` cells wide with SGR
+escape sequences, colors already mapped to cockpit's palette, so the dashboard can paste it into a card
+as is. `cx`/`cy` is the cursor, and `cursor` says whether the program wants it shown.
+
+## Flow control
+
+The server never blocks on a slow dashboard. Each connection has a queue; when it is full, new `screen`
+messages are dropped, which is harmless because the next one is a full snapshot. A dropped `panes`
+message is sent again on the next tick.
+
+## Example
+
+```json
+→ {"op":"attach"}
+← {"op":"panes","panes":[]}
+→ {"op":"spawn","agent":"shell","cwd":"/Users/me/src","cols":80,"rows":24}
+← {"op":"spawned","id":"1"}
+← {"op":"panes","panes":[{"id":"1","agent":"shell","cwd":"/Users/me/src","pid":4242,"cols":80,"rows":24,"started":"2026-11-23T14:02:11Z"}]}
+← {"op":"screen","screen":{"id":"1","lines":["…"],"cx":2,"cy":0,"cursor":true}}
+→ {"op":"input","id":"1","data":"bHMK"}
+```

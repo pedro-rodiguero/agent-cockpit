@@ -66,7 +66,7 @@ type event struct {
 	data  []byte
 	seq   uint64
 	snap  model.Snapshot
-	chats map[string][]chat.Line
+	chats map[string]chat.Conversation
 	msg   string
 }
 
@@ -94,12 +94,12 @@ type App struct {
 	mc        paneServer  // nil when the pane server could not be reached
 	muxErr    string
 
-	snap      model.Snapshot
-	chatLines map[string][]chat.Line // session ID → the end of its conversation
-	panes     []mux.PaneInfo
-	tiles     []tile
-	sel       string // key of the selected tile
-	lay       layout
+	snap  model.Snapshot
+	convs map[string]chat.Conversation // session ID → the end of its conversation and what its log says
+	panes []mux.PaneInfo
+	tiles []tile
+	sel   string // key of the selected tile
+	lay   layout
 
 	view     viewKind
 	onlyAttn bool
@@ -317,15 +317,13 @@ func (a *App) collectLoop(ctx context.Context) {
 }
 
 // readChats returns the end of each agent session's conversation, by session ID.
-func readChats(r *chat.Reader, sessions []model.Session) map[string][]chat.Line {
-	chats := map[string][]chat.Line{}
+func readChats(r *chat.Reader, sessions []model.Session) map[string]chat.Conversation {
+	chats := map[string]chat.Conversation{}
 	for _, s := range sessions {
 		if s.Log == "" || s.State == model.Inbox {
 			continue
 		}
-		if lines := r.Read(s.Agent, s.Log, chatLinesPerCard); len(lines) > 0 {
-			chats[s.ID] = lines
-		}
+		chats[s.ID] = r.Read(s.Agent, s.Log, chatLinesPerCard)
 	}
 	return chats
 }
@@ -343,7 +341,7 @@ func (a *App) handle(ev event) {
 		}
 	case evSnapshot:
 		a.loading = false
-		a.snap, a.chatLines = ev.snap, ev.chats
+		a.snap, a.convs = ev.snap, ev.chats
 		a.rebuild()
 		a.updateLabels()
 	case evPanes:

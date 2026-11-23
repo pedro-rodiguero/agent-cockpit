@@ -42,7 +42,7 @@ note: interrupted
 user: [reviewer] looks good
 note: conversation compacted
 `
-	if got := render(parseClaude([]byte(log))); got != want {
+	if got := render(parseClaude([]byte(log)).Lines); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
@@ -70,8 +70,52 @@ agent: Fixed.
 agent: The import was wrong.
 note: interrupted
 `
-	if got := render(parseCodex([]byte(log))); got != want {
+	if got := render(parseCodex([]byte(log)).Lines); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestParseClaudeInfo(t *testing.T) {
+	assistant := func(content string) string {
+		return `{"type":"assistant","gitBranch":"feat/limits","effort":"high","message":{"role":"assistant","model":"claude-opus-5-5",` +
+			`"usage":{"input_tokens":10,"cache_creation_input_tokens":200,"cache_read_input_tokens":3000},"content":[` + content + `]}}`
+	}
+	log := []string{
+		`{"type":"permission-mode","permissionMode":"plan"}`,
+		`{"type":"user","message":{"role":"user","content":"run the tests"}}`,
+		assistant(`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"npm test"}},{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"/srv/a.ts"}}`),
+		`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}`,
+		`{"type":"assistant","isSidechain":true,"message":{"role":"assistant","model":"claude-haiku-5-5","usage":{"input_tokens":1},"content":[]}}`,
+	}
+	info := parseClaude([]byte(strings.Join(log, "\n"))).Info
+	want := Info{Model: "opus-5-5", Branch: "feat/limits", Effort: "high", Mode: "plan", ContextTokens: 3210, Activity: "Bash npm test", Running: 1}
+	if info != want {
+		t.Fatalf("mid-turn:\n got %+v\nwant %+v", info, want)
+	}
+
+	// The remaining call returns: nothing is running any more.
+	log = append(log, `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}`)
+	if info := parseClaude([]byte(strings.Join(log, "\n"))).Info; info.Activity != "" || info.Running != 0 {
+		t.Fatalf("after results: %+v", info)
+	}
+
+	// A call whose result never arrives is dropped when the person interrupts.
+	log = append(log, assistant(`{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"sleep 99"}}`),
+		`{"type":"user","message":{"role":"user","content":"[Request interrupted by user]"}}`)
+	if info := parseClaude([]byte(strings.Join(log, "\n"))).Info; info.Running != 0 {
+		t.Fatalf("after interrupt: %+v", info)
+	}
+}
+
+func TestParseCodexInfo(t *testing.T) {
+	log := strings.Join([]string{
+		`{"type":"turn_context","payload":{"model":"gpt-6.1","cwd":"/src"}}`,
+		`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"total_tokens":36831},"model_context_window":475000}}}`,
+		`{"type":"event_msg","payload":{"type":"token_count","info":null}}`,
+	}, "\n")
+	want := Info{Model: "gpt-6.1", ContextTokens: 36831, ContextWindow: 475000}
+	if info := parseCodex([]byte(log)).Info; info != want {
+		t.Fatalf("got %+v, want %+v", info, want)
 	}
 }
 
@@ -82,7 +126,7 @@ func TestReaderCachesUntilTheFileChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	var r Reader
-	if got := render(r.Read("claude", path, 10)); got != "user: one\n" {
+	if got := render(r.Read("claude", path, 10).Lines); got != "user: one\n" {
 		t.Fatalf("first read: %q", got)
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
@@ -91,7 +135,7 @@ func TestReaderCachesUntilTheFileChanges(t *testing.T) {
 	}
 	fmt.Fprintf(f, line, "two")
 	f.Close()
-	if got := render(r.Read("claude", path, 1)); got != "user: two\n" {
+	if got := render(r.Read("claude", path, 1).Lines); got != "user: two\n" {
 		t.Fatalf("after append, last line: %q", got)
 	}
 }
@@ -119,7 +163,7 @@ func TestProbe(t *testing.T) {
 		t.Skip("COCKPIT_CHAT not set")
 	}
 	var r Reader
-	for _, l := range r.Read(agent, path, 14) {
+	for _, l := range r.Read(agent, path, 14).Lines {
 		t.Logf("%d %.110s", l.Kind, l.Text)
 	}
 }

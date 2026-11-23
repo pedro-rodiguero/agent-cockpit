@@ -30,6 +30,27 @@ type Line struct {
 	Text string
 }
 
+// Info is what a log says about the session besides the conversation. Fields are zero when the log does
+// not record them.
+type Info struct {
+	Model         string // the model answering, without a vendor prefix: "opus-5-5", "gpt-6.1"
+	Branch        string // git branch of the working directory
+	Effort        string // reasoning effort of the last turn
+	Mode          string // permission mode when it is not the default: "plan", "bypass", "auto-edit"
+	ContextTokens int    // tokens the model was given on its last request
+	ContextWindow int    // size of the model's context window, when the log states it
+	// Activity is the most recent tool call that has not returned yet ("Bash npm test"), and Running
+	// how many such calls there are. Both are zero between turns.
+	Activity string
+	Running  int
+}
+
+// Conversation is the displayable end of a session log.
+type Conversation struct {
+	Lines []Line
+	Info  Info
+}
+
 // Reader parses session logs and caches the result per file until the file changes.
 // The zero value is ready to use.
 type Reader struct {
@@ -39,24 +60,25 @@ type Reader struct {
 
 type entry struct {
 	size, mtime int64
-	lines       []Line
+	conv        Conversation
 	used        time.Time
 }
 
 const (
-	tailBytes = 768 << 10        // how much of a log is parsed; plenty for the visible end of a chat
+	tailBytes = 2 << 20          // how much of a log is parsed; large tool results can fill most of it
 	keepLines = 400              // lines kept per log, more than any card shows
 	forget    = 10 * time.Minute // cached logs not read for this long are dropped
 )
 
-// Read returns the last max lines of the conversation in path. agent picks the parser.
-func (r *Reader) Read(agent, path string, max int) []Line {
+// Read returns the last max lines of the conversation in path, and what the log says about the
+// session. agent picks the parser.
+func (r *Reader) Read(agent, path string, max int) Conversation {
 	if path == "" {
-		return nil
+		return Conversation{}
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
-		return nil
+		return Conversation{}
 	}
 	now := time.Now()
 	r.mu.Lock()
@@ -66,7 +88,7 @@ func (r *Reader) Read(agent, path string, max int) []Line {
 	e, ok := r.cache[path]
 	r.mu.Unlock()
 	if !ok || e.size != fi.Size() || e.mtime != fi.ModTime().UnixNano() {
-		e = entry{size: fi.Size(), mtime: fi.ModTime().UnixNano(), lines: parse(agent, path)}
+		e = entry{size: fi.Size(), mtime: fi.ModTime().UnixNano(), conv: parse(agent, path)}
 	}
 	e.used = now
 	r.mu.Lock()
@@ -77,28 +99,29 @@ func (r *Reader) Read(agent, path string, max int) []Line {
 		}
 	}
 	r.mu.Unlock()
-	if len(e.lines) > max {
-		return e.lines[len(e.lines)-max:]
+	c := e.conv
+	if len(c.Lines) > max {
+		c.Lines = c.Lines[len(c.Lines)-max:]
 	}
-	return e.lines
+	return c
 }
 
-func parse(agent, path string) []Line {
+func parse(agent, path string) Conversation {
 	b, _, err := tailfile.Read(path, tailBytes)
 	if err != nil {
-		return nil
+		return Conversation{}
 	}
-	var lines []Line
+	var c Conversation
 	switch agent {
 	case "claude":
-		lines = parseClaude(b)
+		c = parseClaude(b)
 	case "codex":
-		lines = parseCodex(b)
+		c = parseCodex(b)
 	}
-	if len(lines) > keepLines {
-		lines = lines[len(lines)-keepLines:]
+	if len(c.Lines) > keepLines {
+		c.Lines = c.Lines[len(c.Lines)-keepLines:]
 	}
-	return lines
+	return c
 }
 
 // flat collapses all whitespace, newlines included, into single spaces.
@@ -124,10 +147,20 @@ func tilde(p string) string {
 type claudeEntry struct {
 	Type           string `json:"type"`
 	IsMeta         bool   `json:"isMeta"`
+	IsSidechain    bool   `json:"isSidechain"` // a subagent's message, not part of the main conversation
 	CompactSummary bool   `json:"isCompactSummary"`
+	GitBranch      string `json:"gitBranch"`
+	Effort         string `json:"effort"`
+	PermissionMode string `json:"permissionMode"`
 	Message        struct {
 		Role    string          `json:"role"`
+		Model   string          `json:"model"`
 		Content json.RawMessage `json:"content"`
+		Usage   *struct {
+			Input         int `json:"input_tokens"`
+			CacheCreation int `json:"cache_creation_input_tokens"`
+			CacheRead     int `json:"cache_read_input_tokens"`
+		} `json:"usage"`
 	} `json:"message"`
 	Origin *struct {
 		Kind string `json:"kind"`
@@ -136,23 +169,71 @@ type claudeEntry struct {
 }
 
 type block struct {
-	Type  string          `json:"type"`
-	Text  string          `json:"text"`
-	Name  string          `json:"name"`
-	Input json.RawMessage `json:"input"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text"`
+	ID        string          `json:"id"`          // tool_use
+	Name      string          `json:"name"`        // tool_use
+	Input     json.RawMessage `json:"input"`       // tool_use
+	ToolUseID string          `json:"tool_use_id"` // tool_result
+}
+
+// pendingCalls tracks tool calls that have started and not returned, in the order they started.
+type pendingCalls struct {
+	ids   []string
+	label map[string]string
+}
+
+func (p *pendingCalls) start(id, label string) {
+	if p.label == nil {
+		p.label = map[string]string{}
+	}
+	p.ids = append(p.ids, id)
+	p.label[id] = label
+}
+
+func (p *pendingCalls) finish(id string) { delete(p.label, id) }
+
+// clear forgets every call: a new prompt or an interruption means none of them is still running.
+func (p *pendingCalls) clear() { p.ids, p.label = nil, nil }
+
+// report fills Activity with the latest call still running and Running with how many there are.
+func (p *pendingCalls) report(info *Info) {
+	for _, id := range p.ids {
+		if l, ok := p.label[id]; ok {
+			info.Activity = l
+			info.Running++
+		}
+	}
+}
+
+// claudeModes names the permission modes worth showing; the default mode is left out.
+var claudeModes = map[string]string{
+	"bypassPermissions": "bypass",
+	"acceptEdits":       "auto-edit",
+	"plan":              "plan",
+	"auto":              "auto",
 }
 
 // parseClaude reads Claude Code transcript records. Meta records, command echoes ("<command-name>…")
 // and tool results are skipped; messages that another session sent over the peer socket are shown with
 // the sender's name.
-func parseClaude(b []byte) []Line {
+func parseClaude(b []byte) Conversation {
 	var out []Line
+	var info Info
+	var calls pendingCalls
 	for _, raw := range bytes.Split(b, []byte("\n")) {
+		if bytes.Contains(raw, []byte(`"type":"permission-mode"`)) {
+			var e claudeEntry
+			if json.Unmarshal(raw, &e) == nil && e.Type == "permission-mode" {
+				info.Mode = claudeModes[e.PermissionMode]
+			}
+			continue
+		}
 		if !bytes.Contains(raw, []byte(`"type":"user"`)) && !bytes.Contains(raw, []byte(`"type":"assistant"`)) {
 			continue
 		}
 		var e claudeEntry
-		if json.Unmarshal(raw, &e) != nil || (e.Type != "user" && e.Type != "assistant") {
+		if json.Unmarshal(raw, &e) != nil || (e.Type != "user" && e.Type != "assistant") || e.IsSidechain {
 			continue
 		}
 		var text string
@@ -160,7 +241,26 @@ func parseClaude(b []byte) []Line {
 		if json.Unmarshal(e.Message.Content, &text) != nil {
 			_ = json.Unmarshal(e.Message.Content, &blocks)
 		}
+		if e.GitBranch != "" && e.GitBranch != "HEAD" {
+			info.Branch = e.GitBranch
+		}
+		if e.Type == "assistant" {
+			if m := e.Message.Model; m != "" && m != "<synthetic>" {
+				info.Model = strings.TrimPrefix(m, "claude-")
+			}
+			if u := e.Message.Usage; u != nil {
+				info.ContextTokens = u.Input + u.CacheCreation + u.CacheRead
+			}
+			if e.Effort != "" {
+				info.Effort = e.Effort
+			}
+		}
 		if e.Type == "user" {
+			for _, bl := range blocks {
+				if bl.Type == "tool_result" {
+					calls.finish(bl.ToolUseID)
+				}
+			}
 			if e.Origin != nil && e.Origin.Kind == "peer" {
 				out = append(out, Line{User, "[" + firstNonEmpty(e.Origin.Name, "peer") + "] " + flat(stripEnvelope(text))})
 				continue
@@ -180,10 +280,12 @@ func parseClaude(b []byte) []Line {
 			t := strings.TrimSpace(text)
 			if t == "" || strings.HasPrefix(t, "<") || strings.HasPrefix(t, "[Request interrupted") {
 				if strings.HasPrefix(t, "[Request interrupted") {
+					calls.clear()
 					out = append(out, Line{Note, "interrupted"})
 				}
 				continue
 			}
+			calls.clear()
 			out = append(out, Line{User, flat(t)})
 			continue
 		}
@@ -198,11 +300,14 @@ func parseClaude(b []byte) []Line {
 					}
 				}
 			case "tool_use":
-				out = append(out, Line{Tool, toolName(bl.Name) + " " + toolArg(bl.Input)})
+				label := strings.TrimSpace(toolName(bl.Name) + " " + toolArg(bl.Input))
+				calls.start(bl.ID, label)
+				out = append(out, Line{Tool, label})
 			}
 		}
 	}
-	return out
+	calls.report(&info)
+	return Conversation{Lines: out, Info: info}
 }
 
 // stripEnvelope removes the <cross-session-message …> wrapper Claude Code puts around peer messages.
@@ -260,7 +365,14 @@ func toolArg(raw json.RawMessage) string {
 type codexEntry struct {
 	Type    string `json:"type"`
 	Payload struct {
-		Type string `json:"type"`
+		Type  string `json:"type"`
+		Model string `json:"model"` // turn_context
+		Info  *struct {
+			Last struct {
+				Total int `json:"total_tokens"`
+			} `json:"last_token_usage"`
+			Window int `json:"model_context_window"`
+		} `json:"info"` // token_count
 		Item struct {
 			Type    string `json:"type"`
 			Content []struct {
@@ -276,14 +388,28 @@ type codexEntry struct {
 }
 
 // parseCodex reads the item_completed events of a Codex rollout.
-func parseCodex(b []byte) []Line {
+func parseCodex(b []byte) Conversation {
 	var out []Line
+	var info Info
+	wanted := [][]byte{[]byte(`"item_completed"`), []byte(`"turn_aborted"`), []byte(`"turn_context"`), []byte(`"token_count"`)}
 	for _, raw := range bytes.Split(b, []byte("\n")) {
-		if !bytes.Contains(raw, []byte(`"item_completed"`)) && !bytes.Contains(raw, []byte(`"turn_aborted"`)) {
+		if !containsAny(raw, wanted) {
 			continue
 		}
 		var e codexEntry
 		if json.Unmarshal(raw, &e) != nil {
+			continue
+		}
+		switch {
+		case e.Type == "turn_context":
+			if e.Payload.Model != "" {
+				info.Model = e.Payload.Model
+			}
+			continue
+		case e.Payload.Type == "token_count":
+			if ti := e.Payload.Info; ti != nil {
+				info.ContextTokens, info.ContextWindow = ti.Last.Total, ti.Window
+			}
 			continue
 		}
 		if e.Payload.Type == "turn_aborted" {
@@ -326,7 +452,7 @@ func parseCodex(b []byte) []Line {
 			out = append(out, Line{Tool, "View " + filepath.Base(it.Path)})
 		}
 	}
-	return out
+	return Conversation{Lines: out, Info: info}
 }
 
 func firstNonEmpty(v ...string) string {
@@ -336,4 +462,13 @@ func firstNonEmpty(v ...string) string {
 		}
 	}
 	return ""
+}
+
+func containsAny(b []byte, subs [][]byte) bool {
+	for _, s := range subs {
+		if bytes.Contains(b, s) {
+			return true
+		}
+	}
+	return false
 }

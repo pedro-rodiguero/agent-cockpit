@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 )
 
@@ -14,10 +13,7 @@ import (
 // changes. Everything it needs was prepared by the event loop (tiles, layout, conversations).
 
 const (
-	kvLabelWidth   = 11 // the key column of the list view's details
-	minNameWidth   = 4  // a card title keeps at least this much of the name
-	maxCardNumber  = 9  // cards beyond this have no digit key
-	cardBorderCols = 2  // left and right border of a card
+	kvLabelWidth = 11 // the key column of the list view's details
 )
 
 // List view columns, in cells.
@@ -208,234 +204,6 @@ func (a *App) gridBody() ([]string, cursor) {
 	return out, cur
 }
 
-func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, cursor) {
-	iw, ih := cw-cardBorderCols, ch-cardBorderCols
-	insert := selected && a.mode == insertMode
-	border := cardBorder(t, selected, insert)
-
-	lines := []string{a.cardTop(t, cw, border, selected, num)}
-	var body []string
-	var cur cursor
-	if t.pane != nil {
-		body, cur = a.paneContent(t, iw, ih, insert)
-	} else {
-		body = a.chatContent(t, iw, ih)
-	}
-	for i := 0; i < ih; i++ {
-		row := pad("", iw, cBg)
-		if i < len(body) {
-			row = pad(body[i], iw, cBg)
-		}
-		lines = append(lines, paint(border, cBg, "│")+row+paint(border, cBg, "│"))
-	}
-	lines = append(lines, cardBottom(t, cw, border, selected, insert))
-	if cur.show {
-		cur.x++
-		cur.y++
-	}
-	return lines, cur
-}
-
-func cardBorder(t tile, selected, insert bool) rgb {
-	switch {
-	case insert:
-		return cGoldHi
-	case selected:
-		return cGold
-	case t.state().NeedsAttention():
-		return cLineAttn
-	}
-	return cLine
-}
-
-// cardTop is the top border with the title: ┌ ▲ name · agent ───── s006 · 2m · 1 ┐
-func (a *App) cardTop(t tile, cw int, border rgb, selected bool, num int) string {
-	st := t.state()
-	nameFg := cSoft
-	switch {
-	case selected:
-		nameFg = cGoldHi
-	case st.NeedsAttention():
-		nameFg = cInk
-	}
-	agent := t.agent()
-	if t.pane != nil {
-		agent += " ◧"
-	}
-	rightTxt := ago(since(t), time.Now())
-	if t.sess != nil && t.sess.TTY != "" && t.pane == nil {
-		rightTxt = strings.TrimPrefix(t.sess.TTY, "tty") + " · " + rightTxt
-	}
-	if num <= maxCardNumber && !a.zoom {
-		rightTxt = fmt.Sprintf("%s · %d", rightTxt, num)
-	}
-	right := paint(cFaint, cBg, " "+rightTxt+" ")
-	opening := paint(border, cBg, "┌ ") + paint(look(st).color, cBg, look(st).glyph+" ")
-	agentPart := paint(cMuted, cBg, " · "+agent+" ")
-	const minFill, corner = 1, 1
-	nameRoom := max(minNameWidth, cw-width(opening)-width(agentPart)-width(right)-minFill-corner)
-	left := opening + paintBold(nameFg, cBg, fit(t.name(), min(nameRoom, width(t.name())))) + agentPart
-	fill := cw - corner - width(left) - width(right)
-	if fill < minFill {
-		right = ""
-		fill = cw - corner - width(left)
-	}
-	return pad(left+paint(border, cBg, strings.Repeat("─", max(0, fill)))+right+paint(border, cBg, "┐"), cw, cBg)
-}
-
-func cardBottom(t tile, cw int, border rgb, selected, insert bool) string {
-	hint, hfg := "", cGold
-	if selected {
-		hint = cardHint(t, insert)
-	}
-	if insert {
-		hfg = cGoldHi
-	}
-	if width(hint) > cw-4 {
-		hint = ""
-	}
-	bot := paint(border, cBg, "└") + paint(hfg, cBg, hint) + paint(border, cBg, strings.Repeat("─", max(0, cw-cardBorderCols-width(hint)))+"┘")
-	return pad(bot, cw, cBg)
-}
-
-// cardHint lists the keys that work on the selected card.
-func cardHint(t tile, insert bool) string {
-	switch {
-	case insert:
-		return " typing into agent · ctrl-q leaves "
-	case t.pane != nil && t.pane.Exited:
-		return " exited · x close "
-	case t.pane != nil:
-		return " ⏎ type · z zoom · x close "
-	case t.isItem():
-		return " ⏎ open "
-	}
-	keys := []string{"⏎ go to tab"}
-	if t.canAdopt() {
-		keys = append(keys, "p to pane")
-	}
-	if t.canReply() {
-		keys = append(keys, "r reply")
-	}
-	return " " + strings.Join(append(keys, "z zoom"), " · ") + " "
-}
-
-func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
-	var cur cursor
-	pn := t.pane
-	scr := a.mc.Screen(pn.ID)
-	if scr == nil {
-		return []string{paint(cMuted, cBg, " starting "+pn.Agent+"…")}, cur
-	}
-	body := make([]string, 0, ih)
-	for i := 0; i < ih && i < len(scr.Lines); i++ {
-		body = append(body, scr.Lines[i])
-	}
-	if pn.Exited {
-		msg := fmt.Sprintf(" exited · code %d · x closes the pane ", pn.ExitCode)
-		for len(body) < ih {
-			body = append(body, "")
-		}
-		body[ih-1] = pad(paint(cStuck, cPanel, msg), iw, cPanel)
-	}
-	if insert && scr.Cursor && scr.CX < iw && scr.CY < ih {
-		cur = cursor{x: scr.CX, y: scr.CY, show: true}
-	}
-	return body, cur
-}
-
-// chatStyle is how one kind of conversation line is drawn.
-type chatStyle struct {
-	prefix  string
-	fg      rgb
-	oneLine bool // cut to one line instead of wrapping
-}
-
-func chatLineStyle(k chat.Kind) chatStyle {
-	switch k {
-	case chat.User:
-		return chatStyle{prefix: "› ", fg: cGoldHi}
-	case chat.Tool:
-		return chatStyle{prefix: "⏺ ", fg: cMuted, oneLine: true}
-	case chat.Note:
-		return chatStyle{prefix: "· ", fg: cFaint}
-	case chat.Assistant:
-		return chatStyle{fg: cInk}
-	}
-	return chatStyle{fg: cSoft}
-}
-
-// chatContent is a session card's body: the end of the conversation, with the state at the bottom when
-// it needs saying.
-func (a *App) chatContent(t tile, iw, ih int) []string {
-	s := t.sess
-	var out []string
-	add := func(fg rgb, text string) { out = append(out, paint(fg, cBg, " "+text)) }
-	addWrapped := func(st chatStyle, text string, w int) {
-		indent := strings.Repeat(" ", width(st.prefix))
-		lines := wrap(text, w-width(st.prefix))
-		if st.oneLine && len(lines) > 1 {
-			lines = []string{fit(text, w-width(st.prefix))}
-		}
-		for i, l := range lines {
-			if i == 0 {
-				add(st.fg, st.prefix+l)
-			} else {
-				add(st.fg, indent+l)
-			}
-		}
-	}
-	ww := iw - 2
-
-	if t.isItem() {
-		add(cInbox, s.Detail)
-		addWrapped(chatStyle{fg: cInk}, s.Title, ww)
-		addWrapped(chatStyle{fg: cSoft}, s.LastPrompt, ww)
-		if s.URL != "" {
-			add(cFaint, s.URL)
-		}
-		return tailN(out, ih)
-	}
-
-	if lines := a.chatLines[s.ID]; len(lines) > 0 {
-		for _, ln := range lines {
-			addWrapped(chatLineStyle(ln.Kind), ln.Text, ww)
-		}
-	} else {
-		addWrapped(chatStyle{fg: cSoft}, s.Title, ww)
-		addWrapped(chatLineStyle(chat.User), s.LastPrompt, ww)
-		if s.Heuristic {
-			add(cFaint, "state estimated from activity")
-		}
-		add(cFaint, tilde(s.Cwd))
-	}
-
-	status := statusLine(t)
-	if status == "" {
-		return tailN(out, ih)
-	}
-	room := ih - 1
-	out = tailN(out, room)
-	for len(out) < room {
-		out = append([]string{""}, out...)
-	}
-	return append(out, paint(look(s.State).color, cBg, " "+fit(status, ww)))
-}
-
-// statusLine is the state line at the bottom of a session card, or "" for idle sessions.
-func statusLine(t tile) string {
-	s := t.sess
-	switch s.State {
-	case model.Waiting:
-		return "▲ waiting · " + firstOf(s.Detail, "input needed") + " · ⏎ to answer"
-	case model.Stuck:
-		return "✕ " + firstOf(s.Detail, "no activity")
-	case model.Busy:
-		return "● working · " + ago(since(t), time.Now())
-	}
-	return ""
-}
-
 func tailN(s []string, n int) []string {
 	if n <= 0 {
 		return nil
@@ -540,18 +308,27 @@ func (a *App) listDetails(w int, now time.Time) []string {
 	} else if s.TTY != "" {
 		meta = append(meta, s.TTY)
 	}
+	info := a.convs[s.ID].Info
+	for _, v := range []string{info.Model, info.Mode, info.Effort} {
+		if v != "" {
+			meta = append(meta, v)
+		}
+	}
+	if ctx, _ := contextSize(info); ctx != "" {
+		meta = append(meta, ctx)
+	}
 	row("session", s.Name+"   "+strings.Join(meta, " · "), cInk)
 
-	stateLine := look(s.State).label
-	if s.Detail != "" {
-		stateLine += " · " + s.Detail
-	}
-	stateLine += " · for " + ago(since(t), now)
-	if s.Heuristic {
-		stateLine += "  (estimated from activity)"
+	stateLine := look(s.State).label + " · for " + ago(since(t), now)
+	if detail := stateDetail(*s, info); detail != "" {
+		stateLine += " · " + detail
 	}
 	row("state", stateLine, look(s.State).color)
-	row("dir", firstOf(tilde(s.Cwd), "—"), cSoft)
+	dir := firstOf(tilde(s.Cwd), "—")
+	if info.Branch != "" {
+		dir += "  " + branchGlyph + info.Branch
+	}
+	row("dir", dir, cSoft)
 	row("subject", firstOf(s.Title, "—"), cSoft)
 
 	promptLabel := "prompt"

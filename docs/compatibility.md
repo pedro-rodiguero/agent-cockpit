@@ -11,6 +11,7 @@ Antigravity CLI 1.5.10, on macOS 15.
 |------|----------|
 | `<config>/sessions/<pid>.json`: `pid`, `sessionId`, `cwd`, `name`, `kind`, `status` (`busy`, `waiting`, `idle`), `waitingFor`, `startedAt`, `updatedAt`, `statusUpdatedAt`, `messagingSocketPath` | discovery and state |
 | `<config>/projects/*/<sessionId>.jsonl`: `ai-title` and `last-prompt` records, and `user`/`assistant` messages with `text` and `tool_use` blocks | card title, last prompt, chat |
+| in the same transcript: `message.model`, `message.usage` (input and cache token counts), `gitBranch`, `effort`, `isSidechain`, `permission-mode` records, and `tool_use` ids matched against `tool_result` blocks | model, context size, branch, effort, permission mode, the tool call in progress |
 | `claude --resume <sessionId>` | moving a session into a pane |
 | the messaging socket: newline-delimited JSON, an optional `{"type":"auth","token"}` frame using the token in `<config>/sessions/<pid>.<sha256(socket path)>.key`, then a `user` frame wrapped in `<cross-session-message>` | `r` (reply) |
 
@@ -26,6 +27,7 @@ the agents in its panes would never register.
 | `~/.codex/sessions/**/rollout-<time>-<uuid>.jsonl`, held open by the `codex` process | discovery; the uuid is the session id |
 | first line `session_meta` with `payload.cwd` | matching a rollout to a process when it is not held open |
 | `event_msg` records: `task_started`, `task_complete` (`last_agent_message`), `turn_aborted`, approval and `request_user_input` events, `item_completed` items (`UserMessage`, `AgentMessage`, `CommandExecution`, `FileChange`, `McpToolCall`, `ImageView`) | state and chat |
+| `turn_context` records (`model`) and `token_count` events (`last_token_usage.total_tokens`, `model_context_window`) | model and context size |
 | `codex resume <uuid>` | moving a session into a pane |
 
 ## Antigravity CLI (agy)

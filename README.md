@@ -8,21 +8,26 @@ for twenty minutes, or which one finished while you were elsewhere. cockpit find
 own, shows each one as a card with its live conversation, and sorts what needs you to the top.
 
 ```
- ◆ cockpit   grid 3×2 · page 1/1                                   14:32   ▲ 1  ✕ 0  ● 3  ○ 2
-┌ ▲ api-auth · claude ─────────── s004 · 2m · 1 ┐┌ ● web-next · claude ──────── s007 · 14m · 2 ┐
-│ › add rate limiting to the login route        ││ ⏺ Bash npm run test -- auth                  │
-│ ⏺ Edit ~/src/auth/limits.ts                   ││ The suite passes except for two snapshot     │
-│ Done. Want me to wire it into the gateway?    ││ tests that depend on the clock.              │
-│ ▲ waiting · permission prompt                 ││ ● working · 14m                              │
-└──────────────────────── ⏎ go to tab · p pane ┘└───────────────────────────────────────────────┘
+ ◆ AGENT COCKPIT  grid 2×1                                                              14:32:07
+ ▲ 1 waiting   ✕ 0 stuck?   ✉ 0 inbox   ● 1 working   ○ 0 idle   ◧ 0 panes
+╭ ▲ api-auth ──────────────── claude · s004 · 1 ╮╭ ● web-next ──────────── claude work · s007 · 2 ╮
+│ ~/src/api  ⎇ feat/limits   opus-5-5 · 212k ctx ││ ~/src/web  ⎇ main          opus-5-5 · 88k ctx │
+│ Rate limiting for the login route              ││ Flaky snapshot tests                           │
+│ › add rate limiting to the login route         ││ › why do the auth snapshots fail on CI?        │
+│ ⏺ Edit ~/src/api/limits.ts                     ││ · 6 tool calls                                 │
+│ Done. Want me to wire it into the gateway?     ││ ⏺ Read ~/src/web/test/auth.snap                │
+│                                                ││ Two snapshots depend on the clock.             │
+│ ▲ waiting 2m · permission prompt        plan  ││ ● working 14m · Bash npm test -- auth    high │
+╰ ⏎ go to tab · p to pane · r reply · z zoom ────╯╰────────────────────────────────────────────────╯
 ```
 
 ## What it does
 
 - **Finds sessions without setup.** It reads the state files that Claude Code and Codex already write,
   and the process table; nothing has to be started through cockpit.
-- **Shows what each session is doing.** Every card shows the end of the conversation (your prompts, the
-  agent's replies, the tools it ran) and its state:
+- **Shows what each session is doing.** Every card has the directory and git branch, the model and
+  how much context it holds, what the session is about, your last prompt, the end of the conversation,
+  and a state line with the tool call running right now:
 
   | glyph | state   | meaning |
   |-------|---------|---------|
@@ -93,6 +98,7 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 | `COCKPIT_STUCK_AFTER` | `10m` | how long a working session may stay silent before it counts as stuck |
 | `COCKPIT_CLAUDE_DIRS` | `~/.claude` and every `~/.claude-*` | Claude Code config dirs, colon-separated, default profile first |
 | `COCKPIT_SOURCES` | all | comma-separated sources to enable (`claude,codex,agy,<external>`) |
+| `COCKPIT_COLOR` | detected | `truecolor` or `256`; cockpit uses 24-bit color only where the terminal announces it (Terminal.app before macOS 26 does not) |
 
 A Claude profile other than the default one can keep a long-lived OAuth token (from
 `claude setup-token`) in `<profile dir>/token`; panes started for that profile use it.

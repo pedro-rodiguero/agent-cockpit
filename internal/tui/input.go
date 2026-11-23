@@ -298,8 +298,9 @@ func (a *App) selectNextNeedingAttention() {
 	}
 }
 
-// activate does the obvious thing with the selected tile: type into its pane, go to its terminal tab,
-// or open its link.
+// activate does the obvious thing with the selected tile: type into its pane, continue a session from a
+// terminal tab here (by moving it into a pane, after confirmation), go to the tab of a session that
+// cannot be moved, or open an item's link.
 func (a *App) activate() {
 	t, ok := a.selected()
 	switch {
@@ -309,6 +310,8 @@ func (a *App) activate() {
 		a.mode = insertMode
 	case t.pane != nil:
 		a.say("pane exited · x closes it")
+	case t.canAdopt():
+		a.adopt()
 	case t.sess != nil && t.sess.TTY != "":
 		a.focusTab(t)
 	case t.sess != nil && t.sess.URL != "":
@@ -323,9 +326,9 @@ func (a *App) activate() {
 }
 
 func (a *App) focusTab(t tile) {
-	tty, name := t.sess.TTY, t.name()
+	tty, name, focus := t.sess.TTY, t.name(), a.focus
 	a.goSafe(func() {
-		if err := term.Focus(tty); err != nil {
+		if err := focus(tty); err != nil {
 			a.post(event{kind: evFlash, msg: err.Error()})
 			return
 		}
@@ -400,9 +403,14 @@ func (a *App) adopt() {
 		return
 	}
 	id, pid := t.sess.ID, t.sess.PID
-	question := "move " + t.name() + " into a pane? the tab's process ends and the conversation resumes here." +
-		adoptWarning(t.sess.State) + " · y / n"
+	question := "continue " + t.name() + " here? its terminal tab stops and the conversation resumes in a pane." +
+		adoptWarning(t.sess.State) + " · y / n · o goes to the tab instead"
 	a.confirm(question, func() { a.moveIntoPane(id, pid) })
+	if t.sess.TTY != "" {
+		a.prompt.onO = func() { a.focusTab(t) }
+	} else {
+		a.prompt.label = strings.TrimSuffix(a.prompt.label, " · o goes to the tab instead")
+	}
 }
 
 // adoptWarning says what moving a session in state st loses.
@@ -461,6 +469,7 @@ type prompt struct {
 	agent  int    // promptNew: index into App.launchers
 	target tile   // promptReply: the session to write to
 	onYes  func() // promptConfirm: what "y" does
+	onO    func() // promptConfirm: what "o" does, when the question offers an alternative
 }
 
 // insert adds typed or pasted text; control characters (a pasted newline) become spaces so the prompt
@@ -528,8 +537,11 @@ func (a *App) answer(k key) {
 	}
 	pr := a.prompt
 	a.closePrompt()
-	if k.isRune("y") || k.isRune("Y") {
+	switch {
+	case k.isRune("y") || k.isRune("Y"):
 		pr.onYes()
+	case k.isRune("o") && pr.onO != nil:
+		pr.onO()
 	}
 }
 

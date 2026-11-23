@@ -15,6 +15,7 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
 )
 
 // Options configures the dashboard.
@@ -90,8 +91,9 @@ type App struct {
 	opts      Options
 	launchers []launcher
 	col       *source.Collector
-	chats     chat.Reader // used by the collect goroutine only
-	mc        paneServer  // nil when the pane server could not be reached
+	chats     chat.Reader            // used by the collect goroutine only
+	mc        paneServer             // nil when the pane server could not be reached
+	focus     func(tty string) error // brings a terminal tab to the front; term.Focus outside tests
 	muxErr    string
 
 	snap  model.Snapshot
@@ -132,6 +134,7 @@ func newApp(col *source.Collector, opts Options) *App {
 		opts:      opts,
 		col:       col,
 		launchers: launchers(),
+		focus:     term.Focus,
 		resized:   map[string][2]int{},
 		events:    make(chan event, eventBuffer),
 		done:      make(chan struct{}),

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -210,5 +211,61 @@ func TestNavActionIgnoresPasteAndAlt(t *testing.T) {
 	}
 	if navAction(key{code: keyRune, text: "q"}) != actQuit {
 		t.Error("q does not quit")
+	}
+}
+
+// appWithTabSession is a grid whose selected card is a resumable Claude session in a terminal tab.
+// Focusing a tab is recorded on the returned channel instead of driving Terminal.app.
+func appWithTabSession() (*App, *fakeServer, chan string) {
+	fs := &fakeServer{}
+	a := newTestApp(gridView, 160, 40)
+	a.mc = fs
+	focused := make(chan string, 1)
+	a.focus = func(tty string) error { focused <- tty; return nil }
+	a.snap.Sessions = []model.Session{{ID: "claude:s1", Agent: "claude", Name: "api", PID: 4321, TTY: "ttys004",
+		Cwd: "/srv/api", NativeID: "s1", State: model.Idle}}
+	a.rebuild()
+	a.relayout()
+	a.sel = "claude:s1"
+	return a, fs, focused
+}
+
+func TestEnterOffersToContinueATabSessionHere(t *testing.T) {
+	a, fs, focused := appWithTabSession()
+	press(a, "\r")
+	if a.mode != promptMode || a.prompt.kind != promptConfirm || !strings.HasPrefix(a.prompt.label, "continue api here?") {
+		t.Fatalf("enter did not ask to continue here: mode %v, prompt %+v", a.mode, a.prompt)
+	}
+	press(a, "n")
+	if a.mode != navMode || len(fs.sent) != 0 || len(focused) != 0 {
+		t.Fatal("declining did something")
+	}
+
+	press(a, "\r", "o")
+	select {
+	case tty := <-focused:
+		if tty != "ttys004" {
+			t.Errorf("focused %q", tty)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("o did not go to the tab")
+	}
+	if a.mode != navMode || len(fs.sent) != 0 {
+		t.Fatal("o also moved the session")
+	}
+}
+
+func TestEnterGoesToTheTabWhenTheSessionCannotMove(t *testing.T) {
+	a, _, focused := appWithTabSession()
+	a.snap.Sessions[0].NativeID = "" // nothing to resume it by
+	a.rebuild()
+	press(a, "\r")
+	if a.mode != navMode {
+		t.Fatalf("asked a question for a session that cannot move: %+v", a.prompt)
+	}
+	select {
+	case <-focused:
+	case <-time.After(time.Second):
+		t.Fatal("enter did not go to the tab")
 	}
 }

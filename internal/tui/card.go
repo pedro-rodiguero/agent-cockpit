@@ -20,7 +20,7 @@ import (
 //	│ ⏺ Edit ~/src/api/limits.ts                        │   the end of the conversation
 //	│ Done. Want me to wire it into the gateway?        │
 //	│ ● working 2m · Bash npm test         plan · high │   state bar: what it is doing right now
-//	╰ ⏎ go to tab · p to pane · r reply · z zoom ───────╯   keys, on the selected card
+//	╰ ⏎ continue here · o go to tab · r reply ──────────╯   keys, on the selected card
 //
 // A pane card shows the agent's own terminal between the borders instead; the agent draws its own status.
 const (
@@ -156,7 +156,7 @@ func cardHint(t tile, insert bool) string {
 	}
 	keys := []string{"⏎ go to tab"}
 	if t.canAdopt() {
-		keys = append(keys, "p to pane")
+		keys = []string{"⏎ continue here", "o go to tab"}
 	}
 	if t.canReply() {
 		keys = append(keys, "r reply")

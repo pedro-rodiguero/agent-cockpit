@@ -1,0 +1,98 @@
+package tui
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestWrapWideCharacters(t *testing.T) {
+	cases := []struct {
+		s    string
+		w    int
+		want []string
+	}{
+		{"日本語", 1, []string{"日", "本", "語"}},
+		{"日本語", 4, []string{"日本", "語"}},
+		{"a 日本", 3, []string{"a", "日", "本"}},
+		{"hello world", 5, []string{"hello", "world"}},
+		{"abcdefgh", 3, []string{"abc", "def", "gh"}},
+		{"x", 0, nil},
+	}
+	for _, c := range cases {
+		if got := wrap(c.s, c.w); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("wrap(%q, %d) = %q, want %q", c.s, c.w, got, c.want)
+		}
+	}
+}
+
+func TestFitIsExactWidth(t *testing.T) {
+	for _, s := range []string{"", "abc", "日本語", "Área de trabalho", "a\tb\nc"} {
+		for w := 1; w <= 8; w++ {
+			if got := width(fit(s, w)); got != w {
+				t.Errorf("width(fit(%q, %d)) = %d", s, w, got)
+			}
+		}
+	}
+	if got := fit("日本語", 5); got != "日本…" {
+		t.Errorf("fit cut = %q", got)
+	}
+	if got := fitLeft("/a/b/project", 8); got != "…project" {
+		t.Errorf("fitLeft = %q", got)
+	}
+}
+
+func TestTilde(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cases := map[string]string{
+		home:                   "~",
+		home + "/src":          "~/src",
+		home + "x/src":         home + "x/src",
+		"/elsewhere":           "/elsewhere",
+		filepath.Dir(home):     filepath.Dir(home),
+		home + "/Área/projeto": "~/Área/projeto",
+	}
+	for in, want := range cases {
+		if got := tilde(in); got != want {
+			t.Errorf("tilde(%q) = %q, want %q", in, got, want)
+		}
+		if got := untilde(tilde(in)); got != in {
+			t.Errorf("untilde(tilde(%q)) = %q", in, got)
+		}
+	}
+}
+
+func TestCompleteDirMultibyte(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"Área1", "Área2", "Às", ".hidden", "plain"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "Áfile"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]string{
+		root + "/Á":  root + "/Área", // common prefix, cut on a character boundary
+		root + "/À":  root + "/Às/",  // single match gets a slash
+		root + "/":   root + "/",     // Á and À share a byte, not a character
+		root + "/.h": root + "/.hidden/",
+		root + "/p":  root + "/plain/",
+		root + "/zz": root + "/zz",
+	}
+	for in, want := range cases {
+		if got := completeDir(in); got != want {
+			t.Errorf("completeDir(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in := range cases {
+		if got := completeDir(in); !strings.HasPrefix(got, root) || !isValidUTF8(got) {
+			t.Errorf("completeDir(%q) = %q is not valid UTF-8", in, got)
+		}
+	}
+}
+
+func isValidUTF8(s string) bool { return strings.ToValidUTF8(s, "�") == s }

@@ -86,7 +86,7 @@ func TestNeedingAttention(t *testing.T) {
 }
 
 func TestTileCapabilities(t *testing.T) {
-	claude := model.Session{Agent: "claude", Socket: "/s", NativeID: "n", PID: 1, Cwd: "/x"}
+	claude := model.Session{Agent: "claude", Socket: "/s", NativeID: "n", PID: 1, Cwd: "/x", TTY: "ttys004"}
 	codexNoID := model.Session{Agent: "codex", PID: 1, Cwd: "/x"}
 	pane := mux.PaneInfo{ID: "p"}
 	cases := []struct {
@@ -158,6 +158,17 @@ func TestTileName(t *testing.T) {
 	} {
 		if got := tc.t.name(); got != tc.want {
 			t.Errorf("name() = %q, want %q", got, tc.want)
+		}
+	}
+}
+
+func TestKeysWithoutTabs(t *testing.T) {
+	canFocusTabs = false
+	defer func() { canFocusTabs = true }()
+	s := model.Session{Agent: "claude", PID: 1, Cwd: "/x", NativeID: "n", TTY: "pts/3"}
+	for _, k := range tileKeys(tile{sess: &s}) {
+		if k.key == "o" || k.does == "go to tab" {
+			t.Errorf("offers a tab it cannot reach: %v", tileKeys(tile{sess: &s}))
 		}
 	}
 }

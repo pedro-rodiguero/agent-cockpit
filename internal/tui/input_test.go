@@ -56,6 +56,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	testDir = dir
+	canFocusTabs = true // the tests describe macOS, where tabs can be reached; TestKeysWithoutTabs covers the rest
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

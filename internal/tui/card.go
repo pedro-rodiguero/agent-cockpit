@@ -166,8 +166,11 @@ func tileKeys(t tile) []keyHint {
 	var keys []keyHint
 	switch {
 	case t.canAdopt():
-		keys = append(keys, keyHint{"⏎", "continue here"}, keyHint{"o", "go to tab"})
-	case t.sess != nil && t.sess.TTY != "":
+		keys = append(keys, keyHint{"⏎", "continue here"})
+		if t.hasTab() {
+			keys = append(keys, keyHint{"o", "go to tab"})
+		}
+	case t.hasTab():
 		keys = append(keys, keyHint{"⏎", "go to tab"})
 	}
 	if t.canReply() {

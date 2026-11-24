@@ -7,6 +7,7 @@ import (
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
 )
 
 // tile is one card: a collected session, a pane, or both when the pane runs the session's process.
@@ -36,6 +37,15 @@ func (t tile) isTask() bool { return t.pane == nil && t.sess != nil && t.sess.St
 
 // livePane reports whether the tile is a pane whose program is still running.
 func (t tile) livePane() bool { return t.pane != nil && !t.pane.Exited }
+
+// canFocusTabs says whether cockpit can bring a session's terminal tab to the front here (macOS).
+// A variable rather than term.CanFocus itself, so tests can cover both.
+var canFocusTabs = term.CanFocus
+
+// hasTab reports whether the session runs in a terminal tab cockpit can go to.
+func (t tile) hasTab() bool {
+	return canFocusTabs && t.pane == nil && t.sess != nil && t.sess.TTY != ""
+}
 
 // canReply reports whether a message can be sent to the session over Claude Code's peer socket.
 func (t tile) canReply() bool {

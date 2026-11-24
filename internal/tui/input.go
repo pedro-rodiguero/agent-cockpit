@@ -212,7 +212,7 @@ func (a *App) navKey(k key) {
 	case actActivate:
 		a.activate()
 	case actFocusTab:
-		if t, ok := a.selected(); ok && t.pane == nil && t.sess != nil && t.sess.TTY != "" {
+		if t, ok := a.selected(); ok && t.hasTab() {
 			a.focusTab(t)
 		}
 	case actNewPane:
@@ -377,7 +377,7 @@ func (a *App) activate() {
 		a.promptEditTask()
 	case t.canAdopt():
 		a.adopt()
-	case t.sess != nil && t.sess.TTY != "":
+	case t.hasTab():
 		a.focusTab(t)
 	case t.sess != nil && t.sess.URL != "":
 		url := t.sess.URL
@@ -520,7 +520,7 @@ func (a *App) adopt() {
 
 // offerTab lets "o" answer the open question by going to the tile's terminal tab instead.
 func (a *App) offerTab(t tile) {
-	if t.sess.TTY == "" {
+	if !t.hasTab() {
 		return
 	}
 	a.prompt.label += " · o goes to the tab instead"

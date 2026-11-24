@@ -140,8 +140,9 @@ tasks move to `todo-done.jsonl` after a week.
 
 `cockpit-todo-server` keeps a copy of the list on a server of your own and serves a web app to add to the
 iPhone's home screen: the list by group, quick add, complete, edit, delete, offline. The computers sync
-with it every 30 seconds (`cockpit todo connect https://todo.example.com`, with a device token made in
-the app). Sign-in follows OWASP ASVS level 2, with optional 2FA. See
+with it every 30 seconds: paste a device token made in the app into the Mac app's Settings › To Do, or
+run `cockpit todo connect https://todo.example.com`. When a sync fails the dashboard's header says so, and
+`cockpit todo status` says why. Sign-in follows OWASP ASVS level 2, with optional 2FA. See
 [docs/todo-server.md](docs/todo-server.md) for running it and [docs/security.md](docs/security.md) for
 the security routine.
 

@@ -5,18 +5,20 @@ import SwiftUI
 final class SettingsWindow {
     private let settings: CockpitSettings
     private let detected: Detected
+    private let sync: TodoSync
     private var window: NSWindow?
 
     init(settings: CockpitSettings, cockpit: String) {
         self.settings = settings
         detected = Detected(cockpit: cockpit)
+        sync = TodoSync(cockpit: cockpit)
     }
 
     func show() {
         settings.reload()
         detected.refresh()
         if window == nil {
-            let host = NSHostingController(rootView: SettingsView(settings: settings, detected: detected))
+            let host = NSHostingController(rootView: SettingsView(settings: settings, detected: detected, sync: sync))
             let w = NSWindow(contentViewController: host)
             w.title = "Agent Cockpit Settings"
             w.styleMask = [.titled, .closable]
@@ -32,6 +34,7 @@ final class SettingsWindow {
 struct SettingsView: View {
     @ObservedObject var settings: CockpitSettings
     @ObservedObject var detected: Detected
+    let sync: TodoSync
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,7 +49,7 @@ struct SettingsView: View {
                     .tabItem { Label("Accounts", systemImage: "person.2") }
                 AppearancePane(settings: settings)
                     .tabItem { Label("Appearance", systemImage: "paintpalette") }
-                TodoPane(settings: settings)
+                TodoPane(settings: settings, sync: sync)
                     .tabItem { Label("To Do", systemImage: "checklist") }
                 GeneralPane(settings: settings)
                     .tabItem { Label("General", systemImage: "gearshape") }
@@ -175,11 +178,44 @@ struct AppearancePane: View {
 
 struct TodoPane: View {
     @ObservedObject var settings: CockpitSettings
+    @ObservedObject var sync: TodoSync
     @State private var from = ""
     @State private var into = ""
+    @State private var server = ""
+    @State private var token = ""
 
     var body: some View {
         Form {
+            Section {
+                if sync.state.connected {
+                    LabeledContent("Server", value: sync.state.url ?? "")
+                    LabeledContent("Status") { SyncStatusText(state: sync.state) }
+                    HStack {
+                        Button("Sync Now") { sync.syncNow() }
+                        Button("Disconnect", role: .destructive) { sync.disconnect() }
+                        if sync.busy { ProgressView().controlSize(.small) }
+                    }
+                } else {
+                    TextField("Server", text: $server, prompt: Text("https://todo.example.com"))
+                    SecureField("Device token", text: $token, prompt: Text("ckt_…"))
+                    HStack {
+                        Button("Connect") {
+                            sync.connect(url: server, token: token)
+                            token = ""
+                        }
+                        .disabled(server.isEmpty || token.isEmpty || sync.busy)
+                        if sync.busy { ProgressView().controlSize(.small) }
+                    }
+                }
+                if let m = sync.message, !m.isEmpty {
+                    Text(m).font(.callout).foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Sync with a server")
+            } footer: {
+                Text("A cockpit-todo-server keeps the list on your phone too. Make a device token in its app (Settings › Devices) and paste it here; it is kept only on this Mac. The list syncs every 30 seconds while cockpit runs.")
+                    .foregroundColor(.secondary)
+            }
             Section {
                 TextField("Default group", text: $settings.defaultGroup, prompt: Text("Tasks"))
             } footer: {
@@ -224,6 +260,8 @@ struct TodoPane: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { sync.watch(true) }
+        .onDisappear { sync.watch(false) }
     }
 }
 
@@ -313,4 +351,28 @@ func chooseFolder() -> String? {
     panel.showsHiddenFiles = true
     panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
     return panel.runModal() == .OK ? panel.url?.path : nil
+}
+
+/// How the last sync went: "Synced 20 s ago", or the error in red.
+struct SyncStatusText: View {
+    let state: TodoSync.State
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 5)) { ctx in
+            if let err = state.error, !err.isEmpty {
+                Text("Failed: \(err)").foregroundColor(.red)
+            } else if let at = state.lastSync, at > .distantPast {
+                Text("Synced \(ago(at, now: ctx.date))")
+            } else {
+                Text("Not synced yet").foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func ago(_ d: Date, now: Date) -> String {
+        let s = max(0, Int(now.timeIntervalSince(d)))
+        if s < 60 { return "\(s) s ago" }
+        if s < 3600 { return "\(s / 60) min ago" }
+        return "\(s / 3600) h ago"
+    }
 }

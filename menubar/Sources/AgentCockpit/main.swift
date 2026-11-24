@@ -221,14 +221,21 @@ struct ProcessOutput {
 
     /// Runs the program and waits for it. Both pipes are drained concurrently, so a chatty stderr cannot
     /// fill its buffer and stall the child while stdout is being read.
-    static func run(_ path: String, arguments: [String]) throws -> ProcessOutput {
+    static func run(_ path: String, arguments: [String], input: Data? = nil) throws -> ProcessOutput {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = arguments
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
+        let stdin = Pipe()
+        p.standardInput = input == nil ? FileHandle.nullDevice : stdin
         try p.run()
+        if let input {
+            // Input goes through a pipe, never the arguments: other processes can read those.
+            stdin.fileHandleForWriting.write(input)
+            try? stdin.fileHandleForWriting.close()
+        }
         var errData = Data()
         let drained = DispatchGroup()
         drained.enter()

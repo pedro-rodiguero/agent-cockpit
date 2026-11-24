@@ -239,3 +239,76 @@ enum LoginItem {
         }
     }
 }
+
+/// The to-do list's sync with a cockpit-todo-server, through `cockpit todo status|connect|sync|disconnect`.
+final class TodoSync: ObservableObject {
+    struct State: Decodable, Equatable {
+        var connected = false
+        var url: String?
+        var lastSync: Date?
+        var error: String?
+    }
+
+    @Published private(set) var state = State()
+    @Published private(set) var busy = false
+    /// The outcome of the last action, shown under the buttons.
+    @Published var message: String?
+    private let cockpit: String
+    private var timer: Timer?
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .custom { decoder in
+            let s = try decoder.singleValueContainer().decode(String.self)
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = f.date(from: s) { return d }
+            f.formatOptions = [.withInternetDateTime]
+            return f.date(from: s) ?? .distantPast
+        }
+        return d
+    }()
+
+    init(cockpit: String) { self.cockpit = cockpit }
+
+    /// Refreshes the state now and every few seconds while the window shows it.
+    func watch(_ on: Bool) {
+        timer?.invalidate()
+        timer = nil
+        guard on else { return }
+        refresh()
+        let t = Timer(timeInterval: 3, repeats: true) { [weak self] _ in self?.refresh() }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    func refresh() {
+        let binary = cockpit
+        DispatchQueue.global(qos: .utility).async {
+            guard let run = try? ProcessOutput.run(binary, arguments: ["todo", "status", "-json"]), run.status == 0,
+                  let st = try? Self.decoder.decode(State.self, from: run.stdout) else { return }
+            DispatchQueue.main.async { if self.state != st { self.state = st } }
+        }
+    }
+
+    func connect(url: String, token: String) { act(["connect", url.trimmingCharacters(in: .whitespaces)], input: token + "\n") }
+    func syncNow() { act(["sync"]) }
+    func disconnect() { act(["disconnect"]) }
+
+    private func act(_ args: [String], input: String? = nil) {
+        busy = true
+        message = nil
+        let binary = cockpit
+        DispatchQueue.global(qos: .userInitiated).async {
+            let run = try? ProcessOutput.run(binary, arguments: ["todo"] + args, input: input.map { Data($0.utf8) })
+            let ok = run?.status == 0
+            let text = ok ? String(decoding: run?.stdout ?? Data(), as: UTF8.self) : (run?.stderr ?? "cockpit did not run")
+            DispatchQueue.main.async {
+                self.busy = false
+                let line = text.split(whereSeparator: \.isNewline).last.map(String.init) ?? ""
+                self.message = line.replacingOccurrences(of: "cockpit: ", with: "")
+                self.refresh()
+            }
+        }
+    }
+}

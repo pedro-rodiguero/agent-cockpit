@@ -47,12 +47,26 @@ func filterOps(ms []mux.Msg, op string) (out []mux.Msg) {
 	return out
 }
 
+// testDir holds the files the tests write, such as each test app's to-do list; TestMain removes it.
+var testDir string
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "cockpit-tui-test")
+	if err != nil {
+		panic(err)
+	}
+	testDir = dir
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 // newTestApp is a dashboard of w×h whose to-do list is a file of its own, never the person's.
 func newTestApp(view viewKind, w, h int) *App {
 	a := newApp(nil, Options{Grid: view == gridView})
 	a.w, a.h = w, h
 	a.loading = false
-	dir, err := os.MkdirTemp("", "cockpit-test")
+	dir, err := os.MkdirTemp(testDir, "app")
 	if err != nil {
 		panic(err)
 	}

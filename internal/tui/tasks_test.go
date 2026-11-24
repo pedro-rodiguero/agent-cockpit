@@ -2,8 +2,11 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
 )
@@ -76,5 +79,19 @@ func TestTasksFromTheRail(t *testing.T) {
 	press(a, "x", "y")
 	if got := openTexts(t, a); !equal(got, []string{"Personal/renew passport"}) {
 		t.Fatalf("after delete: %v", got)
+	}
+}
+
+func TestHeaderSaysWhenSyncFails(t *testing.T) {
+	a := newTestApp(gridView, 160, 40)
+	a.rebuild()
+	a.relayout()
+	if lines, _ := a.compose(); strings.Contains(ansi.Strip(strings.Join(lines[:2], "\n")), "sync failed") {
+		t.Fatal("warning shown with nothing wrong")
+	}
+	a.handle(event{kind: evSnapshot, sync: "server unreachable"})
+	lines, _ := a.compose()
+	if !strings.Contains(ansi.Strip(strings.Join(lines[:2], "\n")), "to-do sync failed") {
+		t.Error("no warning after a failed sync")
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todosync"
 )
 
 // Options configures the dashboard.
@@ -80,6 +81,7 @@ type event struct {
 	mc    paneServer    // evMuxLost: the connection that ended
 	look  appearance    // evSnapshot: the appearance the settings ask for
 	quiet time.Duration // evSnapshot: how long a session idles before it moves to the rail
+	sync  string        // evSnapshot: why the to-do list's last sync failed, if it did
 }
 
 // paneServer is the part of mux.Client the dashboard uses; tests substitute a fake.
@@ -142,6 +144,7 @@ type App struct {
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
+	syncErr       string                   // why the to-do list's last sync failed; empty when it worked
 	replacing     bool                     // an old pane server was asked to exit
 	saidOld       bool                     // the footer said the pane server is old
 	flash         flash
@@ -347,7 +350,7 @@ func (a *App) collectLoop(ctx context.Context) {
 		cancel()
 		cfg := a.opts.Settings.Current()
 		a.post(event{kind: evSnapshot, snap: snap, chats: readChats(&a.chats, snap.Sessions),
-			look: a.lookFrom.read(cfg, time.Now()), quiet: cfg.QuietAfter.Or(defaultQuietAfter)})
+			look: a.lookFrom.read(cfg, time.Now()), quiet: cfg.QuietAfter.Or(defaultQuietAfter), sync: a.syncProblem()})
 		select {
 		case <-ctx.Done():
 			return
@@ -397,6 +400,7 @@ func (a *App) handle(ev event) {
 		if ev.quiet > 0 {
 			quietAfter = ev.quiet
 		}
+		a.syncErr = ev.sync
 		if ev.look != a.look {
 			a.look = ev.look
 			useTheme(a.look)
@@ -692,4 +696,17 @@ func (a *App) reconnectMux() {
 		a.muxErr = ""
 	}
 	a.rebuild()
+}
+
+// syncProblem is why the to-do list's last sync with its server failed, or "" when it worked or the list
+// is not connected. Read by the collect goroutine.
+func (a *App) syncProblem() string {
+	if a.tasks == nil {
+		return ""
+	}
+	paths := todosync.For(a.tasks.Path)
+	if _, ok, _ := paths.LoadLink(); !ok {
+		return ""
+	}
+	return paths.LoadStatus().Error
 }

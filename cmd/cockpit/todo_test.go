@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todosync"
 )
 
 func TestTodoCommand(t *testing.T) {
@@ -62,5 +63,28 @@ func TestDueLabel(t *testing.T) {
 		if got := dueLabel(day, now); got != want {
 			t.Errorf("dueLabel(%s) = %q, want %q", day, got, want)
 		}
+	}
+}
+
+func TestTodoStatus(t *testing.T) {
+	store := &todo.Store{Path: filepath.Join(t.TempDir(), "todo.json")}
+	now := time.Date(2026, 11, 24, 15, 0, 0, 0, time.Local)
+	var out bytes.Buffer
+	if err := todoCommand(store, []string{"status", "-json"}, &out, now); err != nil || !strings.Contains(out.String(), `"connected":false`) {
+		t.Fatalf("not connected: %s %v", out.String(), err)
+	}
+	paths := todosync.For(store.Path)
+	if err := paths.SaveLink(todosync.Link{URL: "https://todo.test", Token: "ckt_secret"}); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	_ = todoCommand(store, []string{"status", "-json"}, &out, now)
+	if s := out.String(); !strings.Contains(s, `"connected":true`) || !strings.Contains(s, "https://todo.test") || strings.Contains(s, "ckt_secret") {
+		t.Errorf("connected status: %s", s)
+	}
+	out.Reset()
+	_ = todoCommand(store, []string{"status"}, &out, now)
+	if !strings.Contains(out.String(), "not synced yet") {
+		t.Errorf("text status: %s", out.String())
 	}
 }

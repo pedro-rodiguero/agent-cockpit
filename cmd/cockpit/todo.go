@@ -28,6 +28,7 @@ const todoUsage = `cockpit todo: the to-do list, for scripts and chat bots
   cockpit todo reopen [id]             reopen a task: the one completed last when no id is given
   cockpit todo connect <server>        sync with a cockpit-todo-server; asks for a device token from its app
   cockpit todo sync                    sync now and say how the last sync went
+  cockpit todo status [-json]          whether this computer syncs, where to, and how the last sync went
   cockpit todo disconnect              stop syncing
 
 Numbers follow the listing's order, which changes as tasks come and go: done prints each task it
@@ -145,6 +146,8 @@ func todoCommand(store *todo.Store, args []string, out io.Writer, now time.Time)
 		link, _, _ := paths.LoadLink()
 		fmt.Fprintln(out, "synced with", link.URL)
 		return nil
+	case "status":
+		return syncStatus(store, args, out, now)
 	case "disconnect":
 		if err := todosync.For(store.Path).Disconnect(); err != nil {
 			return err
@@ -296,4 +299,39 @@ func readSecret(prompt string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(line), nil
+}
+
+// syncState is `cockpit todo status -json`, which the menu bar app's Settings window reads.
+type syncState struct {
+	Connected bool      `json:"connected"`
+	URL       string    `json:"url,omitempty"`
+	LastSync  time.Time `json:"lastSync,omitzero"`
+	Error     string    `json:"error,omitempty"`
+}
+
+func syncStatus(store *todo.Store, args []string, out io.Writer, now time.Time) error {
+	paths := todosync.For(store.Path)
+	link, ok, err := paths.LoadLink()
+	if err != nil {
+		return err
+	}
+	st := syncState{Connected: ok, URL: link.URL}
+	if ok {
+		last := paths.LoadStatus()
+		st.LastSync, st.Error = last.At, last.Error
+	}
+	if len(args) > 0 && args[0] == "-json" {
+		return json.NewEncoder(out).Encode(st)
+	}
+	switch {
+	case !st.Connected:
+		fmt.Fprintln(out, "not connected: run cockpit todo connect <server>")
+	case st.LastSync.IsZero():
+		fmt.Fprintln(out, "connected to", st.URL, "· not synced yet")
+	case st.Error != "":
+		fmt.Fprintf(out, "connected to %s · the last sync, %s ago, failed: %s\n", st.URL, now.Sub(st.LastSync).Round(time.Second), st.Error)
+	default:
+		fmt.Fprintf(out, "connected to %s · synced %s ago\n", st.URL, now.Sub(st.LastSync).Round(time.Second))
+	}
+	return nil
 }

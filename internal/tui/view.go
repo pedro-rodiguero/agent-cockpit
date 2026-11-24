@@ -125,6 +125,9 @@ func (a *App) header(w int) []string {
 	case a.muxErr != "":
 		l2 += paint(cStuck, cBg, "multiplexer off")
 	}
+	if a.syncErr != "" {
+		l2 += paint(cStuck, cBg, "   ⇅ to-do sync failed (cockpit todo status)")
+	}
 	return []string{pad(l1, w, cBg), pad(l2, w, cBg)}
 }
 

@@ -374,3 +374,39 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 	t.Fatal("condition not met")
 }
+
+func TestEnterReopensAnEndedPane(t *testing.T) {
+	fs := &fakeServer{panes: []mux.PaneInfo{
+		{ID: "p1", Agent: "claude", Cwd: "/srv/api", PID: 99},
+		{ID: "p2", Agent: "shell", Cwd: "/tmp", PID: 98},
+	}}
+	a := newTestApp(gridView, 160, 40)
+	a.mc = fs
+	a.snap.Sessions = []model.Session{{ID: "claude:s1", Agent: "claude", Name: "api", PID: 99, Cwd: "/srv/api",
+		NativeID: "s1", State: model.Idle, Since: time.Now()}}
+	a.rebuild()
+
+	// Both programs exit; the session goes away with its process.
+	fs.panes[0].Exited, fs.panes[1].Exited = true, true
+	a.snap.Sessions = nil
+	a.rebuild()
+	a.relayout()
+
+	a.sel = paneKey("p1")
+	press(a, "\r")
+	a.sel = paneKey("p2")
+	press(a, "\r")
+	closed, spawned := fs.ops(mux.OpClose), fs.ops(mux.OpSpawn)
+	if len(closed) != 2 || closed[0].ID != "p1" || closed[1].ID != "p2" {
+		t.Fatalf("closed %+v", closed)
+	}
+	if len(spawned) != 2 {
+		t.Fatalf("spawned %+v", spawned)
+	}
+	if s := spawned[0]; s.Agent != "claude" || s.Cwd != "/srv/api" || strings.Join(s.Args, " ") != "--resume s1" {
+		t.Errorf("claude pane reopened as %+v, want its conversation resumed", s)
+	}
+	if s := spawned[1]; s.Agent != "shell" || s.Cwd != "/tmp" || len(s.Args) != 0 {
+		t.Errorf("shell pane reopened as %+v", s)
+	}
+}

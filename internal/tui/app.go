@@ -119,9 +119,10 @@ type App struct {
 
 	labels        *labeler
 	shownLabels   map[string]string
-	resized       map[string][2]int // pane ID → the size last requested for it
-	pendingResume string            // how to resume a moved session by hand, until its pane exists
-	pendingMoves  map[string]int    // session ID → pid of sessions to move into a pane when their turn ends
+	resized       map[string][2]int        // pane ID → the size last requested for it
+	pendingResume string                   // how to resume a moved session by hand, until its pane exists
+	pendingMoves  map[string]int           // session ID → pid of sessions to move into a pane when their turn ends
+	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	flash         flash
 
 	scr        *screen
@@ -449,6 +450,7 @@ func (a *App) rebuild() {
 		tiles = needingAttention(tiles, keep)
 	}
 	a.tiles = tiles
+	a.rememberPaneSessions()
 	a.railN = 0
 	if a.view == gridView {
 		a.railN = railCount(tiles, now)
@@ -470,6 +472,25 @@ func (a *App) forgetClosedPanes() {
 		if !a.hasPane(id) {
 			delete(a.resized, id)
 		}
+	}
+	for id := range a.paneSessions {
+		if !a.hasPane(id) {
+			delete(a.paneSessions, id)
+		}
+	}
+}
+
+// rememberPaneSessions records which session runs in each pane. Once a pane's program exits its session
+// is gone from the snapshot, and this is how ⏎ on the ended pane knows which conversation to resume.
+func (a *App) rememberPaneSessions() {
+	for _, t := range a.tiles {
+		if t.pane == nil || t.sess == nil {
+			continue
+		}
+		if a.paneSessions == nil {
+			a.paneSessions = map[string]model.Session{}
+		}
+		a.paneSessions[t.pane.ID] = *t.sess
 	}
 }
 

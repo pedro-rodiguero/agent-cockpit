@@ -155,7 +155,7 @@ func cardHint(t tile, insert bool) string {
 	case insert:
 		return " typing into agent · ctrl-q leaves "
 	case t.pane != nil && t.pane.Exited:
-		return " exited · x close "
+		return " exited · ⏎ reopen · x close "
 	case t.pane != nil:
 		return " ⏎ type · z zoom · x close "
 	case t.isItem():
@@ -183,7 +183,7 @@ func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
 		body = append(body, scr.Lines[i])
 	}
 	if pn.Exited {
-		msg := fmt.Sprintf(" exited · code %d · x closes the pane ", pn.ExitCode)
+		msg := fmt.Sprintf(" exited · code %d · ⏎ reopens it · x closes it ", pn.ExitCode)
 		for len(body) < ih {
 			body = append(body, "")
 		}

@@ -348,7 +348,7 @@ func (a *App) activate() {
 		a.view = gridView
 		a.mode = insertMode
 	case t.pane != nil:
-		a.say("pane exited · x closes it")
+		a.reopen(t)
 	case t.canAdopt():
 		a.adopt()
 	case t.sess != nil && t.sess.TTY != "":
@@ -361,6 +361,26 @@ func (a *App) activate() {
 			}
 		})
 		a.say("opening " + url)
+	}
+}
+
+// reopen replaces a pane whose program exited with a new one in the same directory: the same
+// conversation when the pane ran a session cockpit can resume, a fresh start of the same agent otherwise.
+func (a *App) reopen(t tile) {
+	if a.muxUnavailable() {
+		return
+	}
+	old := t.pane
+	spec := mux.Msg{Op: mux.OpSpawn, Agent: old.Agent, Cwd: old.Cwd}
+	what := "started " + old.Agent + " again in " + tilde(old.Cwd)
+	if s, ok := a.paneSessions[old.ID]; ok {
+		if resumed, err := resumeSpec(s); err == nil {
+			spec, what = resumed, "resumed "+firstOf(s.Title, s.Name)
+		}
+	}
+	spec.Cols, spec.Rows = a.newPaneSize()
+	if a.send(mux.Msg{Op: mux.OpClose, ID: old.ID}) && a.send(spec) {
+		a.say(what)
 	}
 }
 

@@ -27,7 +27,11 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 | `internal/model` | `Session`, `State`, `Snapshot`: the types every other package shares |
 | `internal/source` | finding sessions: one `Source` per agent, external sources, and the `Collector` that merges them |
 | `internal/config` | the settings file (`config.json`), read again whenever it changes |
-| `internal/todo` | the to-do list: tasks in a JSON file, quick-add parsing, history |
+| `internal/todo` | the to-do list: tasks in a JSON file, quick-add parsing, history, tombstones and merging |
+| `internal/todosync` | keeping the list in step with a to-do server |
+| `internal/auth` | sign-in building blocks: password hashing and policy, TOTP, sealing, rate limits, client IP |
+| `internal/todoserver` | the to-do server: account, sessions, API, sync endpoint, and the phone app in `web/` |
+| `cmd/cockpit-todo-server` | the to-do server's entry point: `serve`, `set-password`, `reset-2fa` |
 | `internal/chat` | turning a transcript into short chat lines for a card |
 | `internal/mux` | the pane server, its client, and the renderer that turns an emulator screen into themed ANSI rows |
 | `internal/tui` | the dashboard: raw terminal I/O, layout, drawing, keys |

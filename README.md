@@ -133,8 +133,17 @@ These variables win over the file:
 | `COCKPIT_COLOR` | detected | `truecolor` or `256`; cockpit uses 24-bit color only where the terminal announces it (Terminal.app before macOS 26 does not) |
 
 The to-do list itself is `todo.json` in the same folder. `cockpit todo` reads and changes it from the
-command line (`-json` for scripts), which is how a chat bot or a phone shortcut can add to it. Completed tasks move to `todo-done.jsonl`
-after a week.
+command line (`-json` for scripts), which is how a chat bot or a phone shortcut can add to it. Completed
+tasks move to `todo-done.jsonl` after a week.
+
+### The to-do list on your phone
+
+`cockpit-todo-server` keeps a copy of the list on a server of your own and serves a web app to add to the
+iPhone's home screen: the list by group, quick add, complete, edit, delete, offline. The computers sync
+with it every 30 seconds (`cockpit todo connect https://todo.example.com`, with a device token made in
+the app). Sign-in follows OWASP ASVS level 2, with optional 2FA. See
+[docs/todo-server.md](docs/todo-server.md) for running it and [docs/security.md](docs/security.md) for
+the security routine.
 
 A Claude profile other than the default one can keep a long-lived OAuth token (from
 `claude setup-token`) in `<profile dir>/token`; panes started for that profile use it.

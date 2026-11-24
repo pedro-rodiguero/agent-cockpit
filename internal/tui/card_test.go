@@ -82,6 +82,12 @@ func TestStateBarPrefersTheRunningToolOverModeAndEffort(t *testing.T) {
 	}
 }
 
+func TestToolCalls(t *testing.T) {
+	if toolCalls(1) != "1 tool call" || toolCalls(3) != "3 tool calls" {
+		t.Errorf("toolCalls: %q %q", toolCalls(1), toolCalls(3))
+	}
+}
+
 func TestFoldToolRuns(t *testing.T) {
 	tool := func(s string) chat.Line { return chat.Line{Kind: chat.Tool, Text: s} }
 	in := []chat.Line{{Kind: chat.User, Text: "go"}, tool("a"), tool("b"), tool("c"), tool("d"), tool("e"),

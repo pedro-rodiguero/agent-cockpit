@@ -452,12 +452,20 @@ func foldToolRuns(lines []chat.Line) []chat.Line {
 			out = append(out, lines[i:j]...)
 			i = j
 		default:
-			out = append(out, chat.Line{Kind: chat.Note, Text: fmt.Sprintf("%d tool calls", run-maxToolRun)})
+			out = append(out, chat.Line{Kind: chat.Note, Text: toolCalls(run - maxToolRun)})
 			out = append(out, lines[j-maxToolRun:j]...)
 			i = j
 		}
 	}
 	return out
+}
+
+// toolCalls says how many tool calls were left out: "1 tool call", "3 tool calls".
+func toolCalls(n int) string {
+	if n == 1 {
+		return "1 tool call"
+	}
+	return fmt.Sprintf("%d tool calls", n)
 }
 
 func chatLineStyle(k chat.Kind) chatStyle {

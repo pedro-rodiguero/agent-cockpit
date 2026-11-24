@@ -10,7 +10,7 @@ import (
 )
 
 // Operations. Dashboards send attach, spawn, input, paste, resize and close; the server sends panes,
-// screen, spawned and error.
+// screen, spawned and error. Anyone may send select, which the server passes on to every dashboard.
 const (
 	OpAttach = "attach" // subscribe to updates; the server answers with panes and every screen
 	OpSpawn  = "spawn"  // start Agent in Cwd with Args and extra Env, sized Cols×Rows
@@ -18,6 +18,7 @@ const (
 	OpPaste  = "paste"  // paste Data into pane ID, bracketed if the program enabled bracketed paste
 	OpResize = "resize" // resize pane ID to Cols×Rows
 	OpClose  = "close"  // stop pane ID's program and drop the pane
+	OpSelect = "select" // show session ID: passed on to every attached dashboard
 
 	OpPanes   = "panes"   // the full pane list, sent whenever it changes
 	OpScreen  = "screen"  // one pane's visible screen, sent whenever it changes

@@ -28,6 +28,7 @@ Every message has an `op`; the other fields depend on it.
 | `paste` | `id`, `data` | paste text: wrapped in bracketed-paste markers only if the program enabled that mode |
 | `resize` | `id`, `cols`, `rows` | resize the pane; the program receives `SIGWINCH` |
 | `close` | `id` | `SIGHUP` the program (then `SIGKILL` after 3s) and drop the pane |
+| `select` | `id` | pass the request on to every attached dashboard, which selects session `id` (or the pane it runs in) once it has collected it. Any connection may send it without attaching: `cockpit select` does |
 
 `agent` is one of `claude`, `codex`, `agy`, `shell`. The program runs through the user's login shell
 (`$SHELL -lc`), so it sees the same `PATH` as in a new terminal tab. `env` entries (`KEY=value`) are
@@ -42,6 +43,7 @@ Code's session markers, are removed first.
 | `screen` | `screen` | on attach and whenever a pane's screen changes, at most about 30 times a second |
 | `spawned` | `id` | reply to `spawn` |
 | `error` | `err` | reply to a request that failed |
+| `select` | `id` | another connection sent `select` |
 
 A `screen` carries the visible rows only. Each row is a string exactly `cols` cells wide with SGR
 escape sequences, colors already mapped to cockpit's palette, so the dashboard can paste it into a card

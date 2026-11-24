@@ -26,6 +26,7 @@ type Options struct {
 	LabelTabs bool          // write each session's state into its terminal tab title
 	Grid      bool          // start in the grid rather than the list
 	Settings  *config.File  // the settings file; nil means the defaults
+	Select    string        // a session ID to select once it shows up
 }
 
 const (
@@ -61,6 +62,7 @@ const (
 	evAdoptStopped                  // msg: a moved session's process ended; the command that resumes it
 	evFlash                         // msg: a message for the footer
 	evAlert                         // msg: a message the person must not miss
+	evSelect                        // msg: a session ID to select (cockpit select)
 	evResize                        // the window changed size
 	evQuit                          // a termination signal arrived
 )
@@ -135,6 +137,7 @@ type App struct {
 	lastDone      string                   // the task u reopens
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
+	pendingSelect string                   // a session to select once it shows up (cockpit select)
 	flash         flash
 
 	scr        *screen
@@ -166,6 +169,7 @@ func newApp(col *source.Collector, opts Options) *App {
 	if opts.Grid {
 		a.view = gridView
 	}
+	a.pendingSelect = opts.Select
 	return a
 }
 
@@ -280,6 +284,8 @@ func (a *App) connectMux() {
 			a.post(event{kind: evSpawned, msg: m.ID})
 		case mux.OpError:
 			a.post(event{kind: evPaneError, msg: m.Err})
+		case mux.OpSelect:
+			a.post(event{kind: evSelect, msg: m.ID})
 		default:
 			if a.muxPending.CompareAndSwap(false, true) {
 				a.post(event{kind: evPanes})
@@ -393,6 +399,7 @@ func (a *App) handle(ev event) {
 			}
 		}
 		a.rebuild()
+		a.selectPending()
 		a.updateLabels()
 		a.runPendingMoves()
 	case evPanes:
@@ -404,6 +411,9 @@ func (a *App) handle(ev event) {
 		a.onSpawned(ev.msg)
 	case evAdoptStopped:
 		a.pendingResume = ev.msg
+	case evSelect:
+		a.pendingSelect = ev.msg
+		a.selectPending()
 	case evFlash:
 		a.say(ev.msg)
 	case evAlert:
@@ -581,4 +591,22 @@ func (a *App) clearLabels() {
 	changes, _ := labelDiff(a.shownLabels, nil)
 	a.shownLabels = nil
 	a.labels.set(changes)
+}
+
+// selectPending selects the session cockpit select asked for, in the grid or the rail, leaving whatever
+// covered it (a pane being typed into, the key list, a zoom on another card). A session not collected
+// yet stays pending until it is, so a dashboard just started can be told what to show.
+func (a *App) selectPending() {
+	id := a.pendingSelect
+	if id == "" {
+		return
+	}
+	for _, t := range a.tiles {
+		if t.key == id || (t.sess != nil && t.sess.ID == id) {
+			a.pendingSelect = ""
+			a.sel = t.key
+			a.mode, a.help, a.zoom, a.prompt = navMode, false, false, nil
+			return
+		}
+	}
 }

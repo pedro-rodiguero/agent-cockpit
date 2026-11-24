@@ -33,12 +33,14 @@ Usage:
   cockpit json             print the current snapshot as JSON (used by the menu bar app)
   cockpit open <id|tty>    bring a session's terminal tab to the front, or open an item's link
   cockpit config           print the settings in effect, what was detected, and the settings file's path
+  cockpit select <id>      select a session in the dashboards that are open
   cockpit version          print the version
 
 Dashboard flags:
   -interval 2s   how often sessions are collected
   -no-labels     don't write session state into terminal tab titles
   -list          start in the list view instead of the grid
+  -select <id>   select this session once it shows up
 
 Settings: <user config dir>/agent-cockpit/config.json (see docs/configuration.md). These variables
 override it:
@@ -69,6 +71,8 @@ func main() {
 		err = runOpen(args)
 	case "config":
 		err = runConfig()
+	case "select":
+		err = runSelect(args)
 	case "version", "--version":
 		fmt.Println(version)
 	case "help", "-h", "--help":
@@ -88,10 +92,11 @@ func runDashboard(args []string) error {
 	interval := fs.Duration("interval", 2*time.Second, "")
 	noLabels := fs.Bool("no-labels", false, "")
 	list := fs.Bool("list", false, "")
+	sel := fs.String("select", "", "")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	_ = fs.Parse(args)
 	file := settings()
-	return tui.Run(source.Default(file), tui.Options{Interval: *interval, LabelTabs: !*noLabels, Grid: !*list, Settings: file})
+	return tui.Run(source.Default(file), tui.Options{Interval: *interval, LabelTabs: !*noLabels, Grid: !*list, Settings: file, Select: *sel})
 }
 
 // runPanes prints the server's panes. It never starts a server: with none running there are no panes.
@@ -214,4 +219,18 @@ func runConfig() error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
+}
+
+// runSelect asks every open dashboard to select a session. The pane server carries the request; with
+// none running there is no dashboard to ask.
+func runSelect(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: cockpit select <id>")
+	}
+	mc, err := mux.Connect()
+	if err != nil {
+		return err
+	}
+	defer mc.Close()
+	return mc.Send(mux.Msg{Op: mux.OpSelect, ID: args[0]})
 }

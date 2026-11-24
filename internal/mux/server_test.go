@@ -1,6 +1,8 @@
 package mux
 
 import (
+	"encoding/json"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -72,4 +74,28 @@ func TestSpawnEnvDropsNestingAndTakesProfile(t *testing.T) {
 		t.Fatalf("env line: %q", got)
 	}
 	s.close(id)
+}
+
+func TestSelectReachesAttachedDashboards(t *testing.T) {
+	s := newServer()
+	dash, dashEnd := net.Pipe()
+	go s.handle(dashEnd)
+	in := json.NewDecoder(dash)
+	out := json.NewEncoder(dash)
+	go func() { _ = out.Encode(Msg{Op: OpAttach}) }()
+	var m Msg
+	if err := in.Decode(&m); err != nil || m.Op != OpPanes {
+		t.Fatalf("attach: %+v %v", m, err)
+	}
+
+	cli, cliEnd := net.Pipe()
+	go s.handle(cliEnd)
+	go func() { _ = json.NewEncoder(cli).Encode(Msg{Op: OpSelect, ID: "claude:s1"}) }()
+
+	_ = dash.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := in.Decode(&m); err != nil || m.Op != OpSelect || m.ID != "claude:s1" {
+		t.Fatalf("dashboard got %+v %v, want the select", m, err)
+	}
+	cli.Close()
+	dash.Close()
 }

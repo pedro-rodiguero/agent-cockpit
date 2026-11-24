@@ -161,6 +161,12 @@ func (s *Server) handle(conn net.Conn) {
 			}
 		case OpClose:
 			s.close(m.ID)
+		case OpSelect:
+			s.mu.Lock()
+			for d := range s.clients {
+				d.send(m)
+			}
+			s.mu.Unlock()
 		}
 	}
 }

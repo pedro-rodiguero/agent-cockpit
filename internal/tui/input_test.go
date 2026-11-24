@@ -454,3 +454,18 @@ func TestFooterAndHelp(t *testing.T) {
 		t.Errorf("a key on the help screen should only close it: help %v, selection %d", a.help, a.cur())
 	}
 }
+
+func TestSelectWaitsForTheSession(t *testing.T) {
+	a := newTestApp(gridView, 160, 40)
+	a.snap.Sessions = testSessions(3)
+	a.rebuild()
+	a.zoom, a.help = true, true
+	a.handle(event{kind: evSelect, msg: "id09"})
+	if a.sel == "id09" || a.pendingSelect != "id09" {
+		t.Fatalf("selected a session not collected yet: sel %q pending %q", a.sel, a.pendingSelect)
+	}
+	a.handle(event{kind: evSnapshot, snap: model.Snapshot{Sessions: testSessions(10)}})
+	if a.sel != "id09" || a.pendingSelect != "" || a.zoom || a.help {
+		t.Errorf("after the session showed up: sel %q pending %q zoom %v help %v", a.sel, a.pendingSelect, a.zoom, a.help)
+	}
+}

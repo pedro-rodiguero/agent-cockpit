@@ -72,6 +72,12 @@ func Serve() error {
 		return err
 	}
 	sock := SocketPath()
+	if len(sock) > maxSocketPath {
+		return fmt.Errorf("socket path %s is longer than the %d bytes a Unix socket allows; set TMPDIR to a shorter folder", sock, maxSocketPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(sock), 0o700); err != nil {
+		return err
+	}
 	if c, err := net.DialTimeout("unix", sock, 300*time.Millisecond); err == nil {
 		c.Close()
 		return errors.New("already running")

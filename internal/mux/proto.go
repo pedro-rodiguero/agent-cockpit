@@ -4,6 +4,7 @@
 package mux
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -76,8 +77,19 @@ func Dir() string {
 	return filepath.Join(os.TempDir(), "agent-cockpit")
 }
 
-// SocketPath is the server's Unix socket.
-func SocketPath() string { return filepath.Join(Dir(), "mux.sock") }
+// maxSocketPath is the longest socket path every Unix allows: sun_path holds 104 bytes on macOS and 108
+// on Linux, the last one a NUL.
+const maxSocketPath = 103
+
+// SocketPath is the server's Unix socket: in Dir, or, when that path is too long for a socket (a long
+// home directory), in a folder of the user's own under the temporary directory.
+func SocketPath() string {
+	p := filepath.Join(Dir(), "mux.sock")
+	if len(p) > maxSocketPath {
+		p = filepath.Join(os.TempDir(), fmt.Sprintf("agent-cockpit-%d", os.Getuid()), "mux.sock")
+	}
+	return p
+}
 
 // Agents maps the agent names a spawn accepts to the command each one runs. "shell" is the user's
 // login shell, or Args when given.

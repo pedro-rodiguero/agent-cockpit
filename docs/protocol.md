@@ -7,12 +7,14 @@ the person types. This file describes that connection; the Go types are in
 
 ## Transport
 
-- A Unix socket at `~/Library/Caches/agent-cockpit/mux.sock`, mode `0600`, so only the user who
-  started the server can connect.
+- A Unix socket at `~/Library/Caches/agent-cockpit/mux.sock` (`$XDG_CACHE_HOME/agent-cockpit/` on
+  Linux), mode `0600`, so only the user who started the server can connect. When that path is longer
+  than a Unix socket allows (103 bytes, with a long home directory), the socket goes in
+  `$TMPDIR/agent-cockpit-<uid>/` instead.
 - Each message is one JSON object followed by a newline, in both directions.
 - The dashboard starts the server when nothing answers on the socket (`cockpit serve`, in its own
-  session so it survives the terminal that started it). The server logs to `serve.log` next to the
-  socket and exits after ten minutes with no panes and no connected dashboards.
+  session so it survives the terminal that started it). The server logs to `serve.log` in the cache
+  folder and exits after ten minutes with no panes and no connected dashboards.
 
 ## Messages
 

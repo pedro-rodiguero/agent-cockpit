@@ -99,3 +99,11 @@ func TestSelectReachesAttachedDashboards(t *testing.T) {
 	cli.Close()
 	dash.Close()
 }
+
+func TestSocketPathStaysShort(t *testing.T) {
+	t.Setenv("HOME", "/Users/"+strings.Repeat("x", 120))
+	t.Setenv("XDG_CACHE_HOME", "")
+	if p := SocketPath(); len(p) > maxSocketPath {
+		t.Errorf("socket path is %d bytes: %s", len(p), p)
+	}
+}

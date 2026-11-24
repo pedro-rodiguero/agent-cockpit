@@ -8,6 +8,7 @@ import (
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todosync"
 )
 
 // TasksName is the tasks source's name and the prefix of its session IDs.
@@ -33,6 +34,7 @@ type Tasks struct {
 func (t *Tasks) Name() string { return TasksName }
 
 func (t *Tasks) Collect(ctx context.Context, env *Env) ([]model.Session, error) {
+	todosync.For(t.Store.Path).SyncIfDue(ctx, t.Store, env.Now)
 	l, err := t.Store.Load()
 	if err != nil {
 		return nil, err

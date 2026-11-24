@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -12,7 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todosync"
 )
 
 const todoUsage = `cockpit todo: the to-do list, for scripts and chat bots
@@ -21,10 +26,16 @@ const todoUsage = `cockpit todo: the to-do list, for scripts and chat bots
   cockpit todo add <text>              add a task; #group and @date are optional, as in the dashboard
   cockpit todo done <n|id>...          complete tasks, by number from the last listing or by id
   cockpit todo reopen [id]             reopen a task: the one completed last when no id is given
+  cockpit todo connect <server>        sync with a cockpit-todo-server; asks for a device token from its app
+  cockpit todo sync                    sync now and say how the last sync went
+  cockpit todo disconnect              stop syncing
 
 Numbers follow the listing's order, which changes as tasks come and go: done prints each task it
 completes, so a stale number shows.
 `
+
+// errUsage is a wrong use of the command; its text is the usage.
+var errUsage = errors.New(strings.TrimSpace(todoUsage))
 
 // listedTask is a task in the output of `cockpit todo -json`.
 type listedTask struct {
@@ -52,7 +63,7 @@ func todoCommand(store *todo.Store, args []string, out io.Writer, now time.Time)
 		asJSON := fs.Bool("json", false, "")
 		fs.SetOutput(io.Discard)
 		if err := fs.Parse(args); err != nil {
-			return errors.New(todoUsage)
+			return errUsage
 		}
 		l, err := store.Load()
 		if err != nil {
@@ -78,7 +89,7 @@ func todoCommand(store *todo.Store, args []string, out io.Writer, now time.Time)
 		return nil
 	case "done":
 		if len(args) == 0 {
-			return errors.New("usage: cockpit todo done <n|id>...")
+			return errors.New("usage: cockpit todo done <n|id> [<n|id>…]")
 		}
 		var done []todo.Task
 		var missing []string
@@ -124,11 +135,27 @@ func todoCommand(store *todo.Store, args []string, out io.Writer, now time.Time)
 		}
 		fmt.Fprintln(out, "reopened:", reopened.Text)
 		return nil
+	case "connect":
+		return connect(store, args, out, now)
+	case "sync":
+		paths := todosync.For(store.Path)
+		if err := paths.SyncNow(context.Background(), store, now); err != nil {
+			return err
+		}
+		link, _, _ := paths.LoadLink()
+		fmt.Fprintln(out, "synced with", link.URL)
+		return nil
+	case "disconnect":
+		if err := todosync.For(store.Path).Disconnect(); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "this computer no longer syncs its to-do list")
+		return nil
 	case "help", "-h", "--help":
 		fmt.Fprint(out, todoUsage)
 		return nil
 	}
-	return errors.New(todoUsage)
+	return errUsage
 }
 
 // numbered is the open tasks in the order they are listed, numbered from 1.
@@ -224,4 +251,49 @@ func dueLabel(day string, now time.Time) string {
 		return "tomorrow"
 	}
 	return fmt.Sprintf("in %dd", days)
+}
+
+// connect links the list to a server: it asks for a device token (made in the server's app, under
+// Settings › Devices), syncs once with it, and keeps it only when that worked.
+func connect(store *todo.Store, args []string, out io.Writer, now time.Time) error {
+	if len(args) != 1 {
+		return errors.New("usage: cockpit todo connect https://todo.example.com")
+	}
+	url, err := todosync.CheckURL(args[0])
+	if err != nil {
+		return err
+	}
+	token, err := readSecret("Device token (from the app: Settings › Devices › Add): ")
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(token, "ckt_") {
+		return errors.New("that is not a device token: they start with ckt_")
+	}
+	link := todosync.Link{URL: url, Token: token}
+	if err := todosync.Sync(context.Background(), link, store, now); err != nil {
+		return err
+	}
+	paths := todosync.For(store.Path)
+	if err := paths.SaveLink(link); err != nil {
+		return err
+	}
+	paths.SyncNow(context.Background(), store, now) //nolint:errcheck // it just worked; this records it
+	fmt.Fprintln(out, "connected: the to-do list syncs with", url, "every 30 seconds while cockpit runs")
+	return nil
+}
+
+// readSecret reads a line without echo on a terminal, or plainly from a pipe.
+func readSecret(prompt string) (string, error) {
+	fmt.Fprint(os.Stderr, prompt)
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		return strings.TrimSpace(string(b)), err
+	}
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
 }

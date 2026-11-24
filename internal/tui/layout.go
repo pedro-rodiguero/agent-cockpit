@@ -120,10 +120,15 @@ func bestGrid(n, W, H, capC, capR int) (cols, rows int) {
 	return max(1, cols), max(1, min(rows, capR))
 }
 
-// cell is the screen region of the k-th card on the page, borders included.
+// cell is the screen region of the k-th card on the page, borders included. A last row with fewer
+// cards than columns spreads them over the whole width rather than leaving a hole.
 func (l layout) cell(k int) rect {
 	r, c := k/l.cols, k%l.cols
-	x0, x1 := c*l.gridW/l.cols, (c+1)*l.gridW/l.cols
+	cols := l.cols
+	if r == l.rows-1 {
+		cols = max(1, l.count-r*l.cols)
+	}
+	x0, x1 := c*l.gridW/cols, (c+1)*l.gridW/cols
 	y0, y1 := r*l.bodyH/l.rows, (r+1)*l.bodyH/l.rows
 	return rect{x: x0, y: l.bodyTop + y0, w: x1 - x0, h: y1 - y0}
 }

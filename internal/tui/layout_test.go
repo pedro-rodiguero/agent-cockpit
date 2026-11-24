@@ -88,8 +88,8 @@ func TestCellsTileTheBody(t *testing.T) {
 		}
 		covered += c.w * c.h
 	}
-	if covered > l.w*l.bodyH {
-		t.Errorf("cells overlap: %d cells of area for a %d body", covered, l.w*l.bodyH)
+	if covered != l.w*l.bodyH {
+		t.Errorf("cells cover %d cells of a %d-cell body: holes or overlaps", covered, l.w*l.bodyH)
 	}
 }
 

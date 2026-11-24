@@ -1243,7 +1243,7 @@ function renderMfa() {
     copyKey.addEventListener('click', () => copyText(String(mfaFlow.secret).replace(/\s+/g, ''), copyKey));
     const uri = String(mfaFlow.uri || '');
     const addLink = /^otpauth:\/\//i.test(uri) ? h('a', { class: 'btn btn-primary', href: uri, text: 'Add to Passwords or an authenticator' }) : null;
-    const form = h('form', { class: 'stack', novalidate: true },
+    const form = h('form', { method: 'post', class: 'stack', novalidate: true },
       h('label', { class: 'field' },
         h('span', { class: 'field-label', text: 'Then enter the 6-digit code it shows' }),
         h('input', { type: 'text', name: 'code', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9]*', maxlength: '6', enterkeyhint: 'done', autocapitalize: 'off', spellcheck: 'false' })),

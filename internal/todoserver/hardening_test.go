@@ -279,3 +279,26 @@ func TestErrorsRevealNothing(t *testing.T) {
 		}
 	}
 }
+
+// Found by the ZAP baseline: forms without method="post" put the password in the URL (history, logs) when
+// submitted before the script runs. Every form posts, so a submit without the script sends nothing in
+// the URL (and the server answers 405).
+func TestFormsNeverPutFieldsInTheURL(t *testing.T) {
+	b, err := os.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	forms := regexp.MustCompile(`(?is)<form\b[^>]*>`).FindAllString(string(b), -1)
+	if len(forms) == 0 {
+		t.Fatal("no forms found")
+	}
+	for _, f := range forms {
+		if !regexp.MustCompile(`(?i)\bmethod\s*=\s*"post"`).MatchString(f) {
+			t.Errorf("form without method=\"post\": %s", f)
+		}
+	}
+	js, _ := os.ReadFile("web/app.js")
+	if regexp.MustCompile(`h\(\s*'form'`).Match(js) && !regexp.MustCompile(`h\(\s*'form'\s*,\s*\{[^}]*method:\s*'post'`).Match(js) {
+		t.Error("app.js builds a form without method post")
+	}
+}

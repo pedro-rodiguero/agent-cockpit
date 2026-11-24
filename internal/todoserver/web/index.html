@@ -31,7 +31,7 @@
     <p class="quiet" id="signin-sub">Sign in to see your list.</p>
     <p class="notice" id="signin-notice" hidden></p>
 
-    <form id="form-password" class="stack" novalidate>
+    <form method="post" id="form-password" class="stack" novalidate>
       <input type="text" name="username" value="todo" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
       <label class="field">
         <span class="field-label">Password</span>
@@ -41,7 +41,7 @@
       <button type="submit" class="btn btn-primary btn-block">Sign in</button>
     </form>
 
-    <form id="form-mfa" class="stack" novalidate hidden>
+    <form method="post" id="form-mfa" class="stack" novalidate hidden>
       <label class="field">
         <span class="field-label" id="mfa-label">6-digit code from your authenticator</span>
         <input type="text" name="code" id="signin-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false" required enterkeyhint="go">
@@ -82,7 +82,7 @@
     </details>
   </div>
 
-  <form id="add-form" class="addbar" autocomplete="off" novalidate>
+  <form method="post" id="add-form" class="addbar" autocomplete="off" novalidate>
     <div class="chips" id="chips" role="group" aria-label="Insert a group or a date" hidden></div>
     <div class="addrow">
       <label for="add-input" class="visually-hidden">New task</label>
@@ -108,7 +108,7 @@
   <div class="settings">
     <section class="sgroup" aria-labelledby="h-password">
       <h2 class="sgroup-title" id="h-password">Password</h2>
-      <form id="form-change-password" class="panel stack" novalidate>
+      <form method="post" id="form-change-password" class="panel stack" novalidate>
         <input type="text" name="username" value="todo" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
         <label class="field"><span class="field-label">Current password</span>
           <input type="password" name="current" autocomplete="current-password" required></label>
@@ -139,7 +139,7 @@
     <section class="sgroup" aria-labelledby="h-devices">
       <h2 class="sgroup-title" id="h-devices">Computers that sync</h2>
       <div class="panel panel-list" id="devices-panel"></div>
-      <form id="form-add-device" class="panel stack" novalidate>
+      <form method="post" id="form-add-device" class="panel stack" novalidate>
         <label class="field"><span class="field-label">Add a computer</span>
           <input type="text" name="name" placeholder="Name, like Work Mac" autocomplete="off" autocapitalize="words" maxlength="80" required></label>
         <p class="form-error" role="alert" hidden></p>
@@ -162,7 +162,7 @@
 </main>
 
 <dialog id="edit-sheet" class="sheet" aria-labelledby="edit-title">
-  <form id="form-edit" class="sheet-body stack" novalidate>
+  <form method="post" id="form-edit" class="sheet-body stack" novalidate>
     <div class="sheet-grabber" aria-hidden="true"></div>
     <h2 class="sheet-title" id="edit-title">Edit task</h2>
     <label class="field">
@@ -181,7 +181,7 @@
 </dialog>
 
 <dialog id="confirm-sheet" class="sheet" aria-labelledby="confirm-title">
-  <form id="form-confirm" class="sheet-body stack" novalidate>
+  <form method="post" id="form-confirm" class="sheet-body stack" novalidate>
     <div class="sheet-grabber" aria-hidden="true"></div>
     <h2 class="sheet-title" id="confirm-title"></h2>
     <p class="quiet" id="confirm-text"></p>

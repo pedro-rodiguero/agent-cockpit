@@ -1,7 +1,7 @@
 // Caches the app shell only, never /api/*. Every shell file is fetched from the network first (so a new
 // version arrives on the next open) and falls back to the cache when the network fails or is slow.
 // Bump VERSION when a shell file changes.
-const VERSION = 'todo-shell-v1';
+const VERSION = 'todo-shell-v2';
 const SHELL = [
   './',
   'app.js',

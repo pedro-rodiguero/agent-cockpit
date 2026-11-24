@@ -125,6 +125,12 @@ var routes = []route{
 	{"POST", "/api/devices", signed, (*Server).postDevice},
 	{"DELETE", "/api/devices/{id}", signed, (*Server).deleteDevice},
 	{"GET", "/api/audit", signed, (*Server).getAudit},
+	{"POST", "/api/login/passkey/options", public, (*Server).postLoginPasskeyOptions},
+	{"POST", "/api/login/passkey", public, (*Server).postLoginPasskey},
+	{"GET", "/api/passkeys", signed, (*Server).getPasskeys},
+	{"POST", "/api/passkeys/options", signed, (*Server).postPasskeyOptions},
+	{"POST", "/api/passkeys", signed, (*Server).postPasskey},
+	{"DELETE", "/api/passkeys/{id}", signed, (*Server).deletePasskey},
 	{"POST", "/api/sync", machine, (*Server).postSync},
 }
 
@@ -197,7 +203,7 @@ func (s *Server) serveAPI(rt route, w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		status := http.StatusOK
-		if r.Method == "POST" && (rt.path == "/api/tasks" || rt.path == "/api/devices") {
+		if r.Method == "POST" && (rt.path == "/api/tasks" || rt.path == "/api/devices" || rt.path == "/api/passkeys") {
 			status = http.StatusCreated
 		}
 		writeJSON(w, status, out)

@@ -61,7 +61,23 @@ again. Requests without fields send `{}`; `DELETE` sends no body.
 | `POST /api/logout` | 204 |
 | `GET /api/me` | `{"csrf", "mfa": {"on", "pending", "recoveryLeft"}}`, or 401 when signed out |
 
-The login and MFA requests need `Content-Type` and `Origin` but no CSRF token (there is no session yet).
+The login, MFA and passkey sign-in requests need `Content-Type` and `Origin` but no CSRF token (there is
+no session yet).
+
+### Passkeys (Face ID, Touch ID)
+
+A passkey signs in alone: it is something the phone has, unlocked by the person's face or fingerprint
+(user verification is required), so it counts as both factors and replaces the password and the 2FA
+code. The account still has its password, for adding passkeys and for a phone without one.
+
+| request | response |
+|---------|----------|
+| `POST /api/login/passkey/options` `{}` | `{"publicKey": {...}}`: options for `navigator.credentials.get`, with `challenge` base64url-encoded; valid 5 minutes, used once |
+| `POST /api/login/passkey` `{"id", "clientDataJSON", "authenticatorData", "signature", "userHandle"}` | the assertion, binary fields base64url-encoded: `{"next": "done", "csrf"}` and the session cookie. 401 when it does not verify, 423 locked, 429 too many attempts |
+| `GET /api/passkeys` | `{"passkeys": [{"id", "name", "created", "lastUsed"}]}` |
+| `POST /api/passkeys/options` `{"password"}` | `{"publicKey": {...}}`: options for `navigator.credentials.create` (binary fields base64url-encoded: `challenge`, `user.id`, `excludeCredentials[].id`). Asks for the password again, which counts toward the lock |
+| `POST /api/passkeys` `{"name", "id", "clientDataJSON", "attestationObject", "transports"}` | 201 `{"passkey"}` |
+| `DELETE /api/passkeys/{id}` | 204 |
 
 ### Tasks
 

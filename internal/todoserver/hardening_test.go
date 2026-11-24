@@ -189,7 +189,9 @@ func TestWrongTypesNeverCrash(t *testing.T) {
 	fields := map[string][]string{
 		"/api/login": {"password"}, "/api/login/mfa": {"code"}, "/api/tasks": {"line"}, "/api/tasks/" + id: {"line", "done"},
 		"/api/password": {"current", "new"}, "/api/mfa/confirm": {"code"}, "/api/mfa/disable": {"password"},
-		"/api/devices": {"name"}, "/api/sync": {"tasks"},
+		"/api/devices": {"name"}, "/api/sync": {"tasks"}, "/api/passkeys/options": {"password"},
+		"/api/passkeys":      {"name", "id", "clientDataJSON", "attestationObject", "transports"},
+		"/api/login/passkey": {"id", "clientDataJSON", "authenticatorData", "signature", "userHandle"},
 	}
 	values := []any{nil, true, 0, -1, 1e308, "", []any{}, []any{1, "a"}, map[string]any{}, map[string]any{"__proto__": 1}, strings.Repeat("x", 1000)}
 	for path, names := range fields {

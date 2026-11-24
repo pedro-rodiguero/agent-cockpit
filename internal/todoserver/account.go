@@ -629,14 +629,15 @@ func (s *Server) SetPassword(password string) error {
 	return s.AuditCLI(name, map[string]string{"sessionsEnded": fmt.Sprint(n)})
 }
 
-// ResetMFA turns 2FA off from the server's command line, for a lost phone without recovery codes.
+// ResetMFA turns 2FA off and removes every passkey, from the server's command line: for a lost phone
+// without recovery codes.
 func (s *Server) ResetMFA() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.st.Account == nil || s.st.Account.MFA == nil {
-		return fmt.Errorf("two-step verification is not on")
+	if s.st.Account == nil || (s.st.Account.MFA == nil && len(s.st.Passkeys) == 0) {
+		return fmt.Errorf("neither two-step verification nor a passkey is on")
 	}
-	s.st.Account.MFA = nil
+	s.st.Account.MFA, s.st.Passkeys = nil, nil
 	n := s.endSessions(s.cfg.Now(), "", "2FA reset on the server")
 	if err := s.save(); err != nil {
 		return err

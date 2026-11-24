@@ -52,6 +52,7 @@ jobs:
           go test ./internal/todo -run '^$' -fuzz '^FuzzMerge$' -fuzztime 60s
           go test ./internal/auth -run '^$' -fuzz '^FuzzTOTP$' -fuzztime 60s
           go test ./internal/auth -run '^$' -fuzz '^FuzzStoredHash$' -fuzztime 60s
+          go test ./internal/auth -run '^$' -fuzz '^FuzzCBOR$' -fuzztime 60s
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

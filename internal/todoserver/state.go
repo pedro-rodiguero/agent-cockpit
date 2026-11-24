@@ -17,6 +17,26 @@ type state struct {
 	Sessions   []session   `json:"sessions"`
 	Devices    []device    `json:"devices"`
 	Challenges []challenge `json:"challenges"`
+	Passkeys   []passkey   `json:"passkeys"`
+	// PasskeyChallenges are issued for creating or using a passkey: single use, five minutes.
+	PasskeyChallenges []passkeyChallenge `json:"passkeyChallenges"`
+}
+
+type passkey struct {
+	ID        string    `json:"id"` // the credential ID, base64url
+	Name      string    `json:"name"`
+	PublicKey []byte    `json:"publicKey"` // PKIX DER
+	Alg       int       `json:"alg"`
+	SignCount uint32    `json:"signCount"`
+	Created   time.Time `json:"created"`
+	LastUsed  time.Time `json:"lastUsed,omitzero"`
+}
+
+type passkeyChallenge struct {
+	Challenge string    `json:"challenge"` // base64url, as clientDataJSON carries it
+	Create    bool      `json:"create"`    // for creating a passkey (else for signing in)
+	Session   string    `json:"session,omitempty"`
+	Expires   time.Time `json:"expires"`
 }
 
 type account struct {
@@ -26,6 +46,8 @@ type account struct {
 	LockLevel   int       `json:"lockLevel,omitempty"`
 	LockedUntil time.Time `json:"lockedUntil,omitzero"`
 	MFA         *mfa      `json:"mfa,omitempty"`
+	// UserHandle identifies the account to passkeys (WebAuthn user.id): random, made once.
+	UserHandle string `json:"userHandle,omitempty"`
 }
 
 type mfa struct {

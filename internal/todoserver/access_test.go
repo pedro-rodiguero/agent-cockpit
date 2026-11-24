@@ -20,6 +20,11 @@ func TestEveryRouteRefusesStrangers(t *testing.T) {
 		r := stranger.do(rt.method, samplePath(rt.path), "{}")
 		switch rt.access {
 		case public:
+			// Passkey sign-in options answer anyone: a single-use random challenge, nothing about the
+			// account, limited per IP and capped in number (TestPasskeyChallengesAreCapped).
+			if rt.path == "/api/login/passkey/options" {
+				continue
+			}
 			if r.Code == 200 || r.Code == 201 || r.Code == 204 {
 				t.Errorf("%s %s answered %d to an empty request", rt.method, rt.path, r.Code)
 			}

@@ -209,7 +209,34 @@ func (a *App) sessionContent(t tile, iw, ih int) []string {
 	if text.lastPrompt != "" && ih >= minRowsForPrompt && len(text.rows)-text.lastPromptRow > room {
 		head = append(head, promptRow(text.lastPrompt, iw))
 	}
-	return stack(ih, head, text.rows, stateBar(t, conv.Info, iw, now, a.isMovePending(t)))
+	body := text.rows
+	if t.state() != model.Busy && t.state() != model.Waiting {
+		body = excerpt(text, ih-len(head)-1, iw)
+	}
+	return stack(ih, head, body, stateBar(t, conv.Info, iw, now, a.isMovePending(t)))
+}
+
+// excerpt fits the end of a finished turn into room rows. When the agent's last reply is longer than
+// the card, the card shows it from its beginning rather than from the middle of a sentence, cut where
+// the room ends, and keeps the closing question, if the reply ends with one, below the cut. A working
+// session shows the end of its conversation instead, where things are happening.
+func excerpt(text cardText, room, iw int) []string {
+	rows := text.rows
+	start := text.lastReplyRow
+	if room <= 0 || start < 0 || len(rows)-start <= room {
+		return rows
+	}
+	var question []string
+	if text.questionRow > start {
+		question = rows[text.questionRow:]
+	}
+	keep := room - 1 - len(question)
+	if keep < 1 {
+		return rows
+	}
+	cut := pad(paint(cFaint, cBg, " ⋯"), iw, cBg)
+	out := append(append([]string{}, rows[start:start+keep]...), cut)
+	return append(out, question...)
 }
 
 // stack fills h rows with head at the top, foot at the bottom, and the end of body between them.
@@ -384,11 +411,14 @@ type chatStyle struct {
 	gap     bool // blank line before it, when it is not the first line
 }
 
-// cardText is the rendered text of a card, and where the last prompt sits in it.
+// cardText is the rendered text of a card, and where its landmarks sit in it. A row index is -1 when
+// the text has no such part.
 type cardText struct {
 	rows          []string
 	lastPrompt    string
 	lastPromptRow int
+	lastReplyRow  int // first row of the agent's last reply: the prose after the last prompt or tool call
+	questionRow   int // first row of the question the conversation ends on
 }
 
 // promptRow is a prompt cut to one row, as pinned below a card's header.
@@ -439,7 +469,7 @@ func chatLineStyle(k chat.Kind) chatStyle {
 // conversation renders the text of a session or inbox card as rows iw cells wide.
 func conversation(t tile, lines []chat.Line, iw int) cardText {
 	s := t.sess
-	var text cardText
+	text := cardText{lastPromptRow: -1, lastReplyRow: -1, questionRow: -1}
 	textW := iw - 2 // one cell of margin on each side
 	add := func(st chatStyle, body string) {
 		if body == "" {
@@ -466,11 +496,25 @@ func conversation(t tile, lines []chat.Line, iw int) cardText {
 		add(chatStyle{fg: cInk, bg: cBg}, s.Title)
 		add(chatStyle{fg: cSoft, bg: cBg, gap: true}, s.LastPrompt)
 	case len(lines) > 0:
-		for _, ln := range foldToolRuns(lines) {
-			if ln.Kind == chat.User {
+		folded := foldToolRuns(lines)
+		prev := chat.Note
+		for i, ln := range folded {
+			st := chatLineStyle(ln.Kind)
+			switch {
+			case ln.Kind == chat.User:
 				text.lastPrompt, text.lastPromptRow = ln.Text, len(text.rows)
+				text.lastReplyRow = -1
+			case ln.Kind == chat.Assistant && prev != chat.Assistant:
+				text.lastReplyRow = len(text.rows)
+			case ln.Kind == chat.Tool:
+				text.lastReplyRow = -1
 			}
-			add(chatLineStyle(ln.Kind), ln.Text)
+			if i == len(folded)-1 && t.state() == model.Asked && ln.Kind == chat.Assistant {
+				text.questionRow = len(text.rows)
+				st.fg = cAsked
+			}
+			add(st, ln.Text)
+			prev = ln.Kind
 		}
 	default:
 		// No readable transcript: the prompt the source reported is all there is.

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -125,5 +126,28 @@ func TestSessionCardPinsScrolledOutPrompt(t *testing.T) {
 	rows = plain(a.sessionContent(sessionTile(s), 40, 6))
 	if rows[1] == " › add rate limiting" {
 		t.Errorf("short card spent a row on the pinned prompt: %q", rows)
+	}
+}
+
+func TestIdleCardShowsLastReplyFromItsStart(t *testing.T) {
+	a := newTestApp(gridView, 120, 40)
+	s := model.Session{ID: "s", Agent: "claude", Cwd: "/srv/api", Title: "Rate limiting", State: model.Asked}
+	reply := []chat.Line{{Kind: chat.User, Text: "add rate limiting"}, {Kind: chat.Tool, Text: "Edit limits.ts"}}
+	for i := 1; i <= 8; i++ {
+		reply = append(reply, chat.Line{Kind: chat.Assistant, Text: fmt.Sprintf("paragraph %d", i)})
+	}
+	reply = append(reply, chat.Line{Kind: chat.Assistant, Text: "Should I push?"})
+	a.convs = map[string]chat.Conversation{"s": {Lines: reply}}
+	rows := plain(a.sessionContent(sessionTile(s), 40, 8))
+	want := []string{" /srv/api", " › add rate limiting", " paragraph 1", " paragraph 2", " paragraph 3", " ⋯", " Should I push?"}
+	if strings.Join(rows[:7], "|") != strings.Join(want, "|") {
+		t.Errorf("rows:\n%q\nwant:\n%q", rows[:7], want)
+	}
+
+	// A working session shows the end of its conversation, where things happen.
+	s.State = model.Busy
+	rows = plain(a.sessionContent(sessionTile(s), 40, 8))
+	if rows[6] != " Should I push?" || rows[5] != " paragraph 8" {
+		t.Errorf("busy rows: %q", rows)
 	}
 }

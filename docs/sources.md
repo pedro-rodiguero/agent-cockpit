@@ -37,7 +37,7 @@ Every field is optional. The full list, with comments, is `model.Session` in
 | `id` | its position | stable identifier; cockpit prefixes it with `<name>:` |
 | `agent` | `<name>` | label shown on the card |
 | `name` | | who or what the item is about; the card's title |
-| `state` | `inbox` | `inbox`, or an agent state (`waiting`, `busy`, `idle`) for sessions running elsewhere |
+| `state` | `inbox` | `inbox`, or an agent state (`waiting`, `asked`, `busy`, `idle`) for sessions running elsewhere |
 | `detail` | | one or two words on why it is here: `question`, `review requested`, `alert high` |
 | `title` | | the subject |
 | `lastPrompt` | | the body; wrapped on the card |

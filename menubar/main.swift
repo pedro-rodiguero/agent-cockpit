@@ -22,7 +22,7 @@ enum Tuning {
 /// What a session needs from the person, if anything. Values cockpit adds later decode as `.idle`, so
 /// an older menu bar app keeps working against a newer binary.
 enum SessionState: String, Decodable, CaseIterable {
-    case waiting, stuck, inbox, busy, idle
+    case waiting, asked, stuck, inbox, busy, idle
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -30,11 +30,12 @@ enum SessionState: String, Decodable, CaseIterable {
     }
 
     /// Whether the session is blocked on the person.
-    var needsYou: Bool { self == .waiting || self == .stuck || self == .inbox }
+    var needsYou: Bool { self == .waiting || self == .asked || self == .stuck || self == .inbox }
 
     var color: NSColor {
         switch self {
         case .waiting: return Palette.waiting
+        case .asked: return Palette.asked
         case .stuck: return Palette.stuck
         case .inbox: return Palette.inbox
         case .busy: return Palette.busy
@@ -45,6 +46,7 @@ enum SessionState: String, Decodable, CaseIterable {
     var glyph: String {
         switch self {
         case .waiting: return "▲"
+        case .asked: return "?"
         case .stuck: return "✕"
         case .inbox: return "✉"
         case .busy: return "●"
@@ -83,6 +85,7 @@ struct Snapshot: Decodable {
 enum Palette {
     static let gold = NSColor(srgbRed: 0.753, green: 0.541, blue: 0.180, alpha: 1)
     static let waiting = NSColor(srgbRed: 0.851, green: 0.502, blue: 0.247, alpha: 1)
+    static let asked = NSColor(srgbRed: 0.498, green: 0.682, blue: 0.690, alpha: 1)
     static let stuck = NSColor(srgbRed: 0.761, green: 0.353, blue: 0.263, alpha: 1)
     static let inbox = NSColor(srgbRed: 0.604, green: 0.659, blue: 0.471, alpha: 1)
     static let busy = NSColor(srgbRed: 0.788, green: 0.647, blue: 0.306, alpha: 1)

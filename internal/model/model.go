@@ -12,6 +12,7 @@ type State string
 
 const (
 	Waiting State = "waiting" // the agent asked a question or a permission and is blocked on it
+	Asked   State = "asked"   // the turn ended with the agent asking the person something
 	Stuck   State = "stuck"   // working, but nothing has been written for a long time
 	Busy    State = "busy"    // a turn is in progress
 	Idle    State = "idle"    // the turn ended; the next move is the person's
@@ -23,19 +24,21 @@ func (s State) Rank() int {
 	switch s {
 	case Waiting:
 		return 0
-	case Stuck:
+	case Asked:
 		return 1
-	case Inbox:
+	case Stuck:
 		return 2
-	case Busy:
+	case Inbox:
 		return 3
-	default:
+	case Busy:
 		return 4
+	default:
+		return 5
 	}
 }
 
 // NeedsAttention reports whether the session is blocked on the person.
-func (s State) NeedsAttention() bool { return s == Waiting || s == Stuck || s == Inbox }
+func (s State) NeedsAttention() bool { return s == Waiting || s == Asked || s == Stuck || s == Inbox }
 
 // Session is one agent session or inbox item.
 type Session struct {

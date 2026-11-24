@@ -155,7 +155,7 @@ func find(l todo.List, listed []listedTask, ref string) (todo.Task, bool) {
 func lastDone(l todo.List) (todo.Task, bool) {
 	var last todo.Task
 	for _, t := range l.Tasks {
-		if !t.Open() && t.Done.After(last.Done) {
+		if t.Live() && !t.Open() && t.Done.After(last.Done) {
 			last = t
 		}
 	}

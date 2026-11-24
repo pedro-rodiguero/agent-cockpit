@@ -54,7 +54,7 @@ func TestOpenGroupsSortsAndFolds(t *testing.T) {
 	if got, want := show(l.Open(true)), "Personal:soon: Personal:site:Side project Personal:later: Tasks:default:"; got != want {
 		t.Errorf("folded:\n got %s\nwant %s", got, want)
 	}
-	if !l.Reopen(done.ID, now) || len(l.Open(false)) != 5 || !l.Delete(soon.ID) || len(l.Open(false)) != 4 {
+	if !l.Reopen(done.ID, now) || len(l.Open(false)) != 5 || !l.Delete(soon.ID, now) || len(l.Open(false)) != 4 {
 		t.Error("reopen or delete did not work")
 	}
 }
@@ -83,5 +83,82 @@ func TestStoreArchivesOldDoneTasks(t *testing.T) {
 	hist, _ := os.ReadFile(s.HistoryPath())
 	if !strings.Contains(string(hist), old.ID) || strings.Count(string(hist), "\n") != 1 {
 		t.Errorf("history: %s", hist)
+	}
+}
+
+func TestDeleteLeavesATombstone(t *testing.T) {
+	var l List
+	a := l.Add("a", "", "", now)
+	l.Add("b", "Side", "", now)
+	if !l.Delete(a.ID, now.Add(time.Minute)) || l.Delete(a.ID, now) {
+		t.Fatal("delete: first should succeed, second should find nothing")
+	}
+	if _, ok := l.Find(a.ID); ok || len(l.Open(false)) != 1 || len(l.Tasks) != 2 {
+		t.Errorf("deleted task still listed, or its tombstone is gone: %+v", l.Tasks)
+	}
+	if l.Edit(a.ID, "back", "", "", now) || l.Complete(a.ID, now) {
+		t.Error("a deleted task changed")
+	}
+	if g := l.Groups(); len(g) != 1 || g[0] != "Side" {
+		t.Errorf("groups of a deleted task still listed: %v", g)
+	}
+}
+
+func TestMerge(t *testing.T) {
+	t0 := now
+	var mine List
+	a := mine.Add("a", "", "", t0)
+	b := mine.Add("b", "", "", t0)
+
+	theirs := []Task{a, b}
+	theirs[0].Text, theirs[0].Updated = "a, edited there", t0.Add(2*time.Minute) // newer there
+	theirs[1].Deleted, theirs[1].Updated = t0.Add(time.Minute), t0.Add(time.Minute)
+	c := Task{ID: "tc", Text: "c", Created: t0, Updated: t0}
+	theirs = append(theirs, c)
+	mine.Edit(b.ID, "b, edited here", "", "", t0.Add(3*time.Minute)) // newer here than the deletion
+
+	mine.Merge(theirs)
+	got := map[string]Task{}
+	for _, x := range mine.Tasks {
+		got[x.ID] = x
+	}
+	if got[a.ID].Text != "a, edited there" {
+		t.Errorf("newer remote edit lost: %+v", got[a.ID])
+	}
+	if !got[b.ID].Live() || got[b.ID].Text != "b, edited here" {
+		t.Errorf("older remote deletion won over a newer local edit: %+v", got[b.ID])
+	}
+	if len(mine.Tasks) != 3 || mine.Tasks[2].ID != "tc" {
+		t.Errorf("new task not appended: %+v", mine.Tasks)
+	}
+
+	// Merging is idempotent and commutative in what survives.
+	again := mine
+	again.Tasks = append([]Task(nil), mine.Tasks...)
+	again.Merge(mine.Tasks)
+	if len(again.Tasks) != 3 {
+		t.Errorf("merging a copy into itself changed it: %+v", again.Tasks)
+	}
+}
+
+func TestStoreDropsOldTombstones(t *testing.T) {
+	s := &Store{Path: filepath.Join(t.TempDir(), "todo.json")}
+	var id string
+	if err := s.Update(now, func(l *List) { id = l.Add("x", "", "", now).ID; l.Delete(id, now) }); err != nil {
+		t.Fatal(err)
+	}
+	l, _ := s.Load()
+	if len(l.Tasks) != 1 {
+		t.Fatalf("tombstone not kept: %+v", l.Tasks)
+	}
+	if err := s.Update(now.Add(8*24*time.Hour), func(*List) {}); err != nil {
+		t.Fatal(err)
+	}
+	l, _ = s.Load()
+	if len(l.Tasks) != 0 {
+		t.Errorf("old tombstone kept: %+v", l.Tasks)
+	}
+	if b, _ := os.ReadFile(s.HistoryPath()); len(b) != 0 {
+		t.Errorf("a deleted task went to the history: %s", b)
 	}
 }

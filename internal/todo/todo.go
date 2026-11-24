@@ -1,9 +1,10 @@
 // Package todo is cockpit's own to-do list: a JSON file of tasks the dashboard adds, edits and completes,
 // and the tasks source lists in the rail.
 //
-// The file is meant to be shared with other clients later (a phone app, a sync service), so every task
-// carries a stable ID and its creation and change times, and completed tasks stay in the file, with
-// their completion time, for a week before they move to a history file next to it.
+// The file is shared with other clients (the to-do server and its phone app), so every task carries a
+// stable ID and its creation and change times, and a deleted task stays in the file as a tombstone:
+// Merge then tells a deletion from a task the other side has not seen yet. Completed tasks stay for a
+// week before they move to a history file next to the list; tombstones are dropped after a week.
 package todo
 
 import (
@@ -18,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -35,11 +37,15 @@ type Task struct {
 	Due     string    `json:"due,omitempty"`   // DateLayout
 	Created time.Time `json:"created"`
 	Updated time.Time `json:"updated"`
-	Done    time.Time `json:"done,omitzero"` // zero while the task is open
+	Done    time.Time `json:"done,omitzero"`    // zero while the task is open
+	Deleted time.Time `json:"deleted,omitzero"` // set when the task was deleted; zero otherwise
 }
 
+// Live reports whether the task has not been deleted.
+func (t Task) Live() bool { return t.Deleted.IsZero() }
+
 // Open reports whether the task still has to be done.
-func (t Task) Open() bool { return t.Done.IsZero() }
+func (t Task) Open() bool { return t.Done.IsZero() && t.Live() }
 
 // Settings change how the list is shown. They are not part of the file: they belong to the machine
 // showing the list (see Store.Settings).
@@ -72,6 +78,9 @@ func (l *List) Groups() []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, t := range l.Tasks {
+		if !t.Live() {
+			continue
+		}
 		g := firstOf(t.Group, l.DefaultGroup())
 		if !seen[g] {
 			seen[g] = true
@@ -103,30 +112,46 @@ func (l *List) Reopen(id string, now time.Time) bool {
 	return l.change(id, func(t *Task) { t.Done, t.Updated = time.Time{}, now })
 }
 
-// Delete removes a task.
-func (l *List) Delete(id string) bool {
-	for i, t := range l.Tasks {
-		if t.ID == id {
-			l.Tasks = append(l.Tasks[:i], l.Tasks[i+1:]...)
-			return true
-		}
-	}
-	return false
+// Delete marks a task deleted, leaving a tombstone for other copies of the list to learn from.
+func (l *List) Delete(id string, now time.Time) bool {
+	return l.change(id, func(t *Task) { t.Deleted, t.Updated = now, now })
 }
 
-// Find returns the task with id.
+// Find returns the task with id, unless it was deleted.
 func (l *List) Find(id string) (Task, bool) {
 	for _, t := range l.Tasks {
-		if t.ID == id {
+		if t.ID == id && t.Live() {
 			return t, true
 		}
 	}
 	return Task{}, false
 }
 
+// Merge takes in another copy's tasks: for each task, the version changed last wins, and on a tie the
+// incoming one. Tasks new to the list are added after the ones it has, in their own order.
+func (l *List) Merge(incoming []Task) {
+	at := make(map[string]int, len(l.Tasks))
+	for i, t := range l.Tasks {
+		at[t.ID] = i
+	}
+	for _, t := range incoming {
+		if t.ID == "" {
+			continue
+		}
+		i, ok := at[t.ID]
+		switch {
+		case !ok:
+			at[t.ID] = len(l.Tasks)
+			l.Tasks = append(l.Tasks, t)
+		case !t.Updated.Before(l.Tasks[i].Updated):
+			l.Tasks[i] = t
+		}
+	}
+}
+
 func (l *List) change(id string, fn func(*Task)) bool {
 	for i := range l.Tasks {
-		if l.Tasks[i].ID == id {
+		if l.Tasks[i].ID == id && l.Tasks[i].Live() {
 			fn(&l.Tasks[i])
 			return true
 		}
@@ -177,6 +202,11 @@ func (s *Store) load() (List, error) {
 func (s *Store) Update(now time.Time, fn func(*List)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	unlock, err := s.lockFile()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	l, err := s.load()
 	if err != nil {
 		return err
@@ -184,9 +214,14 @@ func (s *Store) Update(now time.Time, fn func(*List)) error {
 	fn(&l)
 	var keep, old []Task
 	for _, t := range l.Tasks {
-		if !t.Open() && now.Sub(t.Done) > keepDone {
+		switch {
+		case !t.Live():
+			if now.Sub(t.Deleted) <= keepDone {
+				keep = append(keep, t)
+			}
+		case !t.Open() && now.Sub(t.Done) > keepDone:
 			old = append(old, t)
-		} else {
+		default:
 			keep = append(keep, t)
 		}
 	}
@@ -195,6 +230,27 @@ func (s *Store) Update(now time.Time, fn func(*List)) error {
 	}
 	l.Tasks = keep
 	return s.save(l)
+}
+
+// lockFile holds an exclusive lock on a file next to the list until unlock is called, so processes
+// that change the list (dashboards, `cockpit todo`, the server) take turns instead of overwriting each
+// other's changes.
+func (s *Store) lockFile() (unlock func(), err error) {
+	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(s.Path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		f.Close()
+	}, nil
 }
 
 // HistoryPath is the file completed tasks move to: one JSON task per line.

@@ -51,7 +51,7 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 - **A Mac app (optional).** Agent Cockpit.app runs the dashboard in a window of its own, with its own
   Dock icon, and stays in the menu bar when the window is closed: `◆ ▲1 ●3`, a list of sessions, and a
   macOS notification when a session starts waiting, looks stuck, or finishes a turn that took more
-  than a minute. `⌥Space` brings the dashboard up
+  than a minute; clicking it shows that session in the dashboard. `⌥Space` brings the dashboard up
   from any app and puts it away again. Opening the app from Spotlight or the Dock opens the dashboard.
 
 ## Requirements

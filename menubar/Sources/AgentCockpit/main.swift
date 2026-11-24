@@ -353,13 +353,17 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         c.subtitle = "\(s.agent) · \(((s.cwd ?? "") as NSString).abbreviatingWithTildeInPath)"
         c.body = String(alert.body.prefix(Tuning.notificationBodyLimit))
         c.sound = .default
-        c.userInfo = ["id": s.id]
+        c.userInfo = ["id": s.id, "inbox": s.state == .inbox]
         let request = UNNotificationRequest(identifier: "\(s.id)-\(s.state.rawValue)", content: c, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
 
     func userNotificationCenter(_ c: UNUserNotificationCenter, didReceive r: UNNotificationResponse, withCompletionHandler done: @escaping () -> Void) {
-        if let id = r.notification.request.content.userInfo["id"] as? String { open(id) }
+        let info = r.notification.request.content.userInfo
+        if let id = info["id"] as? String {
+            // An inbox item opens its link; a session shows in the dashboard, selected.
+            if info["inbox"] as? Bool ?? false { open(id) } else { showSession(id) }
+        }
         done()
     }
 
@@ -493,6 +497,19 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     }
 
     @objc func openDashboard() { dashboard.show() }
+
+    /// Shows the dashboard with a session selected.
+    func showSession(_ id: String) {
+        guard dashboard.isOpen else {
+            dashboard.show(select: id)
+            return
+        }
+        dashboard.show()
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: cockpit)
+        p.arguments = ["select", id]
+        try? p.run()
+    }
 
     /// The hotkey: brings the dashboard to the front, or hides the app when the dashboard is already in
     /// front, so the same key goes back to what was there before.

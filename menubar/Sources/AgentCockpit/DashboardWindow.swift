@@ -25,10 +25,11 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
     /// Whether the window is the one taking keys.
     var isKey: Bool { window?.isKeyWindow ?? false }
 
-    /// Brings the window to the front, starting the dashboard if it is not running.
-    func show() {
+    /// Brings the window to the front, starting the dashboard if it is not running. A session to select
+    /// goes to a dashboard started now; a running one is told with `cockpit select`.
+    func show(select session: String? = nil) {
         if window == nil {
-            open()
+            open(select: session)
         }
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -50,7 +51,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         w.makeFirstResponder(t)
     }
 
-    private func open() {
+    private func open(select session: String?) {
         let frame = NSRect(x: 0, y: 0, width: 1440, height: 880)
         let w = NSWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                          backing: .buffered, defer: false)
@@ -80,7 +81,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
             DispatchQueue.main.async { self?.apply() }
         }
-        start(t)
+        start(t, select: session)
         w.makeFirstResponder(t)
     }
 
@@ -92,11 +93,13 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         return t
     }
 
-    private func start(_ t: LocalProcessTerminalView) {
+    private func start(_ t: LocalProcessTerminalView, select session: String? = nil) {
         // A login shell gives cockpit the PATH the person's shell has (agents, external sources),
         // which an app started by launchd does not.
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        t.startProcess(executable: shell, args: ["-l", "-c", "exec \(shellQuoted(cockpit))"],
+        var command = "exec \(shellQuoted(cockpit))"
+        if let session { command += " -select \(shellQuoted(session))" }
+        t.startProcess(executable: shell, args: ["-l", "-c", command],
                        environment: environment(), execName: "-" + (shell as NSString).lastPathComponent)
     }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/pedro-rodiguero/agent-cockpit/internal/config"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
@@ -31,6 +32,7 @@ Usage:
   cockpit panes [-screen]  list the panes the server holds, optionally with their screens
   cockpit json             print the current snapshot as JSON (used by the menu bar app)
   cockpit open <id|tty>    bring a session's terminal tab to the front, or open an item's link
+  cockpit config           print the settings in effect, what was detected, and the settings file's path
   cockpit version          print the version
 
 Dashboard flags:
@@ -38,8 +40,9 @@ Dashboard flags:
   -no-labels     don't write session state into terminal tab titles
   -list          start in the list view instead of the grid
 
-Environment:
-  COCKPIT_SOURCES       comma-separated sources to enable (default: all)
+Settings: <user config dir>/agent-cockpit/config.json (see docs/configuration.md). These variables
+override it:
+  COCKPIT_SOURCES       comma-separated sources to enable (default: all but the ones turned off)
   COCKPIT_STUCK_AFTER   how long a working session may stay silent before it counts as stuck (10m)
   COCKPIT_CLAUDE_DIRS   colon-separated Claude Code config dirs (default: ~/.claude and ~/.claude-*)
 
@@ -64,6 +67,8 @@ func main() {
 		err = runJSON()
 	case "open", "focus":
 		err = runOpen(args)
+	case "config":
+		err = runConfig()
 	case "version", "--version":
 		fmt.Println(version)
 	case "help", "-h", "--help":
@@ -85,7 +90,8 @@ func runDashboard(args []string) error {
 	list := fs.Bool("list", false, "")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	_ = fs.Parse(args)
-	return tui.Run(source.Default(), tui.Options{Interval: *interval, LabelTabs: !*noLabels, Grid: !*list})
+	file := settings()
+	return tui.Run(source.Default(file), tui.Options{Interval: *interval, LabelTabs: !*noLabels, Grid: !*list, Settings: file})
 }
 
 // runPanes prints the server's panes. It never starts a server: with none running there are no panes.
@@ -137,7 +143,7 @@ func runPanes(args []string) error {
 }
 
 func runJSON() error {
-	snap := source.Default().Collect(context.Background())
+	snap := source.Default(settings()).Collect(context.Background())
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(snap)
@@ -152,7 +158,7 @@ func runOpen(args []string) error {
 	if strings.HasPrefix(target, "tty") || strings.HasPrefix(target, "/dev/") {
 		return term.Focus(target)
 	}
-	snap := source.Default().Collect(context.Background())
+	snap := source.Default(settings()).Collect(context.Background())
 	for _, s := range snap.Sessions {
 		switch {
 		case s.ID != target:
@@ -166,4 +172,46 @@ func runOpen(args []string) error {
 		}
 	}
 	return fmt.Errorf("session %s not found", target)
+}
+
+// settings is the settings file. One that does not parse is reported and otherwise ignored.
+func settings() *config.File {
+	f := &config.File{Path: config.DefaultPath()}
+	if _, err := f.Get(); err != nil {
+		fmt.Fprintln(os.Stderr, "cockpit: settings ignored:", err)
+	}
+	return f
+}
+
+// runConfig prints the settings in effect and what cockpit found on the machine, for people and for the
+// menu bar app's Preferences window.
+func runConfig() error {
+	file := &config.File{Path: config.DefaultPath()}
+	cfg, err := file.Get()
+	errText := ""
+	if err != nil {
+		errText = err.Error()
+	}
+	var names []string
+	for _, s := range source.Available(cfg) {
+		names = append(names, s.Name())
+	}
+	out := struct {
+		Path     string        `json:"path"`
+		Error    string        `json:"error,omitempty"`
+		Settings config.Config `json:"settings"`
+		Detected struct {
+			Claude  []string `json:"claude"`
+			Codex   string   `json:"codex"`
+			Agy     string   `json:"agy"`
+			Sources []string `json:"sources"`
+		} `json:"detected"`
+	}{Path: file.Path, Error: errText, Settings: cfg}
+	out.Detected.Claude = source.DetectClaudeDirs()
+	out.Detected.Codex = source.CodexHome(config.Config{})
+	out.Detected.Agy = source.AgyRoot(config.Config{})
+	out.Detected.Sources = names
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }

@@ -17,7 +17,7 @@ func TestAdoptLive(t *testing.T) {
 	if pid == 0 {
 		t.Skip("set COCKPIT_ADOPT_PID")
 	}
-	snap := source.Default().Collect(context.Background())
+	snap := source.Default(nil).Collect(context.Background())
 	for _, s := range snap.Sessions {
 		if s.PID != pid {
 			continue

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/config"
 )
 
 func TestClaudeDirs(t *testing.T) {
@@ -17,13 +19,17 @@ func TestClaudeDirs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got := strings.Join(ClaudeDirs(), " ")
+	got := strings.Join(ClaudeDirs(config.Config{}), " ")
 	want := filepath.Join(home, ".claude") + " " + filepath.Join(home, ".claude-work")
 	if got != want {
 		t.Errorf("default: %s, want %s", got, want)
 	}
+	cfg := config.Config{Accounts: config.Accounts{Claude: []string{"/c"}}}
+	if got := strings.Join(ClaudeDirs(cfg), " "); got != "/c" {
+		t.Errorf("settings: %s", got)
+	}
 	t.Setenv("COCKPIT_CLAUDE_DIRS", "/a:/b")
-	if got := strings.Join(ClaudeDirs(), " "); got != "/a /b" {
+	if got := strings.Join(ClaudeDirs(cfg), " "); got != "/a /b" {
 		t.Errorf("override: %s", got)
 	}
 }

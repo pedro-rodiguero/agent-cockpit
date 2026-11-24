@@ -20,7 +20,7 @@ func TestRender(t *testing.T) {
 	if out == "" {
 		t.Skip("COCKPIT_RENDER not set")
 	}
-	a := newApp(source.Default(), Options{Grid: true})
+	a := newApp(source.Default(nil), Options{Grid: true})
 	a.w, a.h = 204, 54
 	if size := os.Getenv("COCKPIT_RENDER_SIZE"); size != "" {
 		if _, err := fmt.Sscanf(size, "%dx%d", &a.w, &a.h); err != nil {

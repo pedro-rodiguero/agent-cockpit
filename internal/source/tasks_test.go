@@ -16,11 +16,10 @@ func TestTasksFoldsWhileTheHostAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &todo.Store{Path: filepath.Join(t.TempDir(), "todo.json")}
+	settings := todo.Settings{Fold: map[string]string{"Side": "Personal"}, FoldWhenReachable: ln.Addr().String()}
+	store := &todo.Store{Path: filepath.Join(t.TempDir(), "todo.json"), Settings: func() todo.Settings { return settings }}
 	now := time.Now()
 	if err := store.Update(now, func(l *todo.List) {
-		l.Settings.Fold = map[string]string{"Side": "Personal"}
-		l.Settings.FoldWhenReachable = ln.Addr().String()
 		l.Add("site", "Side", "2026-11-26", now)
 	}); err != nil {
 		t.Fatal(err)

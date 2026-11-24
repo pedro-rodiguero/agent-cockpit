@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/config"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
@@ -24,6 +25,7 @@ type Options struct {
 	Interval  time.Duration // how often sessions are collected (at least minCollectInterval)
 	LabelTabs bool          // write each session's state into its terminal tab title
 	Grid      bool          // start in the grid rather than the list
+	Settings  *config.File  // the settings file; nil means the defaults
 }
 
 const (
@@ -144,11 +146,11 @@ func newApp(col *source.Collector, opts Options) *App {
 	a := &App{
 		opts:       opts,
 		col:        col,
-		launchers:  launchers(),
+		launchers:  launchers(source.ClaudeDirs(opts.Settings.Current())),
 		focus:      term.Focus,
 		stop:       func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
 		resized:    map[string][2]int{},
-		tasks:      &todo.Store{Path: todo.DefaultPath()},
+		tasks:      &todo.Store{Path: todo.DefaultPath(), Settings: func() todo.Settings { return opts.Settings.Current().Todo }},
 		collectNow: make(chan struct{}, 1),
 		events:     make(chan event, eventBuffer),
 		done:       make(chan struct{}),

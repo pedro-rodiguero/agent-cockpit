@@ -41,7 +41,8 @@ type Task struct {
 // Open reports whether the task still has to be done.
 func (t Task) Open() bool { return t.Done.IsZero() }
 
-// Settings change how the list is shown.
+// Settings change how the list is shown. They are not part of the file: they belong to the machine
+// showing the list (see Store.Settings).
 type Settings struct {
 	// DefaultGroup is the group of a task added without one. "Tasks" when empty.
 	DefaultGroup string `json:"defaultGroup,omitempty"`
@@ -54,7 +55,7 @@ type Settings struct {
 
 // List is the content of the file.
 type List struct {
-	Settings Settings `json:"settings"`
+	Settings Settings `json:"-"`
 	Tasks    []Task   `json:"tasks"`
 }
 
@@ -136,7 +137,9 @@ func (l *List) change(id string, fn func(*Task)) bool {
 // Store reads and writes a List in a file. Writes replace the file atomically.
 type Store struct {
 	Path string
-	mu   sync.Mutex
+	// Settings, when set, gives the settings each loaded list is shown with.
+	Settings func() Settings
+	mu       sync.Mutex
 }
 
 // DefaultPath is where the list lives: <user config dir>/agent-cockpit/todo.json.
@@ -158,13 +161,15 @@ func (s *Store) Load() (List, error) {
 func (s *Store) load() (List, error) {
 	var l List
 	b, err := os.ReadFile(s.Path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return l, nil
+	if err == nil {
+		err = json.Unmarshal(b, &l)
+	} else if errors.Is(err, fs.ErrNotExist) {
+		err = nil
 	}
-	if err != nil {
-		return l, err
+	if s.Settings != nil {
+		l.Settings = s.Settings()
 	}
-	return l, json.Unmarshal(b, &l)
+	return l, err
 }
 
 // Update loads the list, applies fn and saves the result, moving tasks completed more than a week

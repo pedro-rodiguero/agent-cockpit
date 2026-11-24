@@ -186,3 +186,19 @@ func TestQuestion(t *testing.T) {
 		}
 	}
 }
+
+func TestProse(t *testing.T) {
+	for in, want := range map[string]string{
+		"  plain **bold** text ":   "plain bold text",
+		"## Lista do dia":          "Lista do dia",
+		"#hashtag":                 "#hashtag",
+		"|---|:---:|---|":          "",
+		"---":                      "",
+		"| 15/11 | 166 |  | 166 |": "15/11 · 166 · 166",
+		"a | b":                    "a | b",
+	} {
+		if got := prose(in); got != want {
+			t.Errorf("prose(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

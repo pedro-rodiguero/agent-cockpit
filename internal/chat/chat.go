@@ -141,6 +141,40 @@ func parse(agent, path string) Conversation {
 	return c
 }
 
+// appendProse adds an agent's message to out, one line per paragraph, with the Markdown that only
+// makes sense when rendered taken out: emphasis markers, heading marks, rules and table borders. A
+// table row becomes its cells joined by " · ".
+func appendProse(out []Line, text string) []Line {
+	for _, para := range strings.Split(text, "\n") {
+		if p := prose(para); p != "" {
+			out = append(out, Line{Assistant, p})
+		}
+	}
+	return out
+}
+
+func prose(line string) string {
+	p := strings.TrimSpace(strings.ReplaceAll(line, "**", ""))
+	if strings.Trim(p, "|-:= ") == "" {
+		return "" // a table's header separator, a rule, or nothing
+	}
+	if strings.HasPrefix(p, "#") {
+		if h := strings.TrimLeft(p, "#"); strings.HasPrefix(h, " ") {
+			return strings.TrimSpace(h)
+		}
+	}
+	if strings.HasPrefix(p, "|") && strings.HasSuffix(p, "|") && len(p) > 1 {
+		var cells []string
+		for _, c := range strings.Split(p[1:len(p)-1], "|") {
+			if c = strings.TrimSpace(c); c != "" {
+				cells = append(cells, c)
+			}
+		}
+		return strings.Join(cells, " · ")
+	}
+	return p
+}
+
 // flat collapses all whitespace, newlines included, into single spaces.
 func flat(s string) string { return strings.Join(strings.Fields(s), " ") }
 
@@ -308,13 +342,7 @@ func parseClaude(b []byte) Conversation {
 		for _, bl := range blocks {
 			switch bl.Type {
 			case "text":
-				if t := strings.TrimSpace(bl.Text); t != "" {
-					for _, para := range strings.Split(t, "\n") {
-						if p := strings.TrimSpace(para); p != "" {
-							out = append(out, Line{Assistant, strings.ReplaceAll(p, "**", "")})
-						}
-					}
-				}
+				out = appendProse(out, bl.Text)
 			case "tool_use":
 				label := strings.TrimSpace(toolName(bl.Name) + " " + toolArg(bl.Input))
 				calls.start(bl.ID, label)
@@ -444,11 +472,7 @@ func parseCodex(b []byte) Conversation {
 		case "UserMessage":
 			out = append(out, Line{User, flat(text())})
 		case "AgentMessage":
-			for _, para := range strings.Split(text(), "\n") {
-				if p := strings.TrimSpace(para); p != "" {
-					out = append(out, Line{Assistant, strings.ReplaceAll(p, "**", "")})
-				}
-			}
+			out = appendProse(out, text())
 		case "CommandExecution":
 			cmd := it.Command
 			if len(cmd) >= 3 && strings.HasSuffix(cmd[0], "sh") && strings.HasPrefix(cmd[1], "-") {

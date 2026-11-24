@@ -4,8 +4,9 @@ STATICCHECK := honnef.co/go/tools/cmd/staticcheck@2025.1.1
 
 .PHONY: build test lint menubar install clean
 
-build: ## Build bin/cockpit
+build: ## Build bin/cockpit and bin/cockpit-todo-server
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/cockpit ./cmd/cockpit
+	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/cockpit-todo-server ./cmd/cockpit-todo-server
 
 test: ## Run the tests with the race detector
 	go test -race ./...

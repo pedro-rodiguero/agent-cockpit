@@ -48,7 +48,7 @@ func (a *Agy) Collect(ctx context.Context, env *Env) ([]model.Session, error) {
 			Heuristic: true,
 		}
 		var newest time.Time
-		for _, n := range lsofNames(ctx, p.PID, false) {
+		for _, n := range openFiles(ctx, p.PID) {
 			if !strings.HasPrefix(n, convDir) {
 				continue
 			}

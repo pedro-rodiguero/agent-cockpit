@@ -55,7 +55,7 @@ func (c *Codex) Collect(ctx context.Context, env *Env) ([]model.Session, error) 
 		}
 		cwd := procCwd(ctx, p.PID)
 		rollout := ""
-		for _, n := range lsofNames(ctx, p.PID, false) {
+		for _, n := range openFiles(ctx, p.PID) {
 			if strings.HasSuffix(n, ".jsonl") && strings.HasPrefix(n, c.Root) {
 				rollout = n
 			}

@@ -44,6 +44,10 @@ const (
 	actClosePane
 	actAdopt
 	actHelp
+	actNewTask
+	actCompleteTask
+	actEditTask
+	actUndo
 )
 
 // binding is a key as navigation mode sees it.
@@ -77,6 +81,10 @@ var navBindings = map[binding]action{
 	{keyRune, "x"}: actClosePane,
 	{keyRune, "p"}: actAdopt,
 	{keyRune, "?"}: actHelp,
+	{keyRune, "+"}: actNewTask,
+	{keyRune, " "}: actCompleteTask,
+	{keyRune, "e"}: actEditTask,
+	{keyRune, "u"}: actUndo,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -217,6 +225,14 @@ func (a *App) navKey(k key) {
 		a.adopt()
 	case actHelp:
 		a.help = true
+	case actNewTask:
+		a.promptNewTask()
+	case actCompleteTask:
+		a.completeTask()
+	case actEditTask:
+		a.promptEditTask()
+	case actUndo:
+		a.undoComplete()
 	}
 }
 
@@ -357,6 +373,8 @@ func (a *App) activate() {
 		a.mode = insertMode
 	case t.pane != nil:
 		a.reopen(t)
+	case t.ownTask():
+		a.promptEditTask()
 	case t.canAdopt():
 		a.adopt()
 	case t.sess != nil && t.sess.TTY != "":
@@ -441,6 +459,10 @@ func (a *App) promptReply() {
 
 func (a *App) confirmClosePane() {
 	t, ok := a.selected()
+	if ok && t.ownTask() {
+		a.confirmDeleteTask(t)
+		return
+	}
 	if !ok || t.pane == nil {
 		a.say("x closes panes opened by cockpit")
 		return
@@ -575,6 +597,7 @@ const (
 	promptNew     promptKind = iota // directory and agent for a new pane
 	promptReply                     // a message for a Claude session
 	promptConfirm                   // a yes/no question
+	promptTask                      // a task of the to-do list, new or edited
 )
 
 type prompt struct {
@@ -585,6 +608,8 @@ type prompt struct {
 	target tile   // promptReply: the session to write to
 	onYes  func() // promptConfirm: what "y" does
 	onO    func() // promptConfirm: what "o" does, when the question offers an alternative
+	taskID string // promptTask: the task being edited, "" for a new one
+	group  string // promptTask: the group of a new task typed without #group
 }
 
 // insert adds typed or pasted text; control characters (a pasted newline) become spaces so the prompt
@@ -670,6 +695,11 @@ func (a *App) submit() {
 		a.closePrompt()
 		if text != "" {
 			a.sendReply(pr.target, text)
+		}
+	case promptTask:
+		a.closePrompt()
+		if text != "" {
+			a.saveTask(pr.taskID, pr.group, text)
 		}
 	}
 }

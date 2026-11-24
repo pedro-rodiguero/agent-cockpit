@@ -16,6 +16,7 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
 )
 
 // Options configures the dashboard.
@@ -123,6 +124,9 @@ type App struct {
 	resized       map[string][2]int        // pane ID → the size last requested for it
 	pendingResume string                   // how to resume a moved session by hand, until its pane exists
 	pendingMoves  map[string]int           // session ID → pid of sessions to move into a pane when their turn ends
+	tasks         *todo.Store              // cockpit's own to-do list
+	lastDone      string                   // the task u reopens
+	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	flash         flash
 
@@ -138,17 +142,19 @@ type App struct {
 
 func newApp(col *source.Collector, opts Options) *App {
 	a := &App{
-		opts:      opts,
-		col:       col,
-		launchers: launchers(),
-		focus:     term.Focus,
-		stop:      func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
-		resized:   map[string][2]int{},
-		events:    make(chan event, eventBuffer),
-		done:      make(chan struct{}),
-		loading:   true,
-		w:         fallbackCols,
-		h:         fallbackRows,
+		opts:       opts,
+		col:        col,
+		launchers:  launchers(),
+		focus:      term.Focus,
+		stop:       func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
+		resized:    map[string][2]int{},
+		tasks:      &todo.Store{Path: todo.DefaultPath()},
+		collectNow: make(chan struct{}, 1),
+		events:     make(chan event, eventBuffer),
+		done:       make(chan struct{}),
+		loading:    true,
+		w:          fallbackCols,
+		h:          fallbackRows,
 	}
 	if opts.Grid {
 		a.view = gridView
@@ -323,6 +329,7 @@ func (a *App) collectLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(interval):
+		case <-a.collectNow:
 		}
 	}
 }

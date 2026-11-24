@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
 )
 
 // fakeServer records what the dashboard sends instead of talking to `cockpit serve`. Like the real
@@ -44,10 +47,16 @@ func filterOps(ms []mux.Msg, op string) (out []mux.Msg) {
 	return out
 }
 
+// newTestApp is a dashboard of w×h whose to-do list is a file of its own, never the person's.
 func newTestApp(view viewKind, w, h int) *App {
 	a := newApp(nil, Options{Grid: view == gridView})
 	a.w, a.h = w, h
 	a.loading = false
+	dir, err := os.MkdirTemp("", "cockpit-test")
+	if err != nil {
+		panic(err)
+	}
+	a.tasks = &todo.Store{Path: filepath.Join(dir, "todo.json")}
 	return a
 }
 

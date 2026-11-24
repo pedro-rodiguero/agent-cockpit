@@ -158,6 +158,8 @@ func tileKeys(t tile) []keyHint {
 		return []keyHint{{"⏎", "reopen"}, {"x", "close"}, {"z", "zoom"}}
 	case t.pane != nil:
 		return []keyHint{{"⏎", "type into it"}, {"z", "zoom"}, {"x", "close"}}
+	case t.ownTask():
+		return []keyHint{{"space", "done"}, {"⏎", "edit"}, {"x", "delete"}, {"+", "new task"}}
 	case t.isItem():
 		return []keyHint{{"⏎", "open"}}
 	}

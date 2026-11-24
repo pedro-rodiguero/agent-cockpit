@@ -346,7 +346,7 @@ func (a *App) footerKeys(w int, key func(k, d string) string) string {
 	if a.view == gridView {
 		otherView = "list"
 	}
-	general := []keyHint{{"n", "new"}, {"!", "next needing me"}, {"v", otherView}, {"q", "quit"}}
+	general := []keyHint{{"n", "new pane"}, {"+", "task"}, {"!", "next needing me"}, {"v", otherView}, {"q", "quit"}}
 	tail := key("?", "keys")
 	out := own
 	for _, k := range general {
@@ -387,10 +387,14 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 		line += paint(cGold, cPanel, "  dir ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
 		line += paint(cFaint, cPanel, "   ↑↓ agent · tab complete · ⏎ start · esc cancel")
-	case promptReply:
+	case promptReply, promptTask:
 		line = paint(cGold, cPanel, " "+pr.label+" ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
-		line += paint(cFaint, cPanel, "   ⏎ send · esc cancel")
+		hint := "   ⏎ send · esc cancel"
+		if pr.kind == promptTask {
+			hint = "   #group @date (today, tomorrow, 25/12) · ⏎ save · esc cancel"
+		}
+		line += paint(cFaint, cPanel, hint)
 	case promptConfirm:
 		line = paint(cWaiting, cPanel, " "+pr.label)
 	}

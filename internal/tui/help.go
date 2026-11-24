@@ -16,8 +16,13 @@ var helpKeys = [][]keyHint{
 		{"o", "go to the session's terminal tab"},
 		{"r", "send a message to a Claude Code session"},
 		{"n", "new pane"},
-		{"x", "close a pane, stopping its agent"},
+		{"x", "close a pane, stopping its agent; delete a task"},
 		{"ctrl-q", "leave a pane; every other key goes to the agent"},
+	},
+	{
+		{"+", "new task: \"call the venue @tomorrow #personal\""},
+		{"space", "complete the selected task · u reopens it"},
+		{"e", "edit the selected task"},
 	},
 	{
 		{"z", "zoom the selected card · esc leaves"},

@@ -334,6 +334,17 @@ func readChats(r *chat.Reader, sessions []model.Session) map[string]chat.Convers
 	return chats
 }
 
+// markAsked moves idle sessions whose conversation ends on a question to the asked state. Sources
+// report the agent's view (the turn is over); the question means the next move is the person's.
+func markAsked(snap model.Snapshot, chats map[string]chat.Conversation) model.Snapshot {
+	for i, s := range snap.Sessions {
+		if s.State == model.Idle && chats[s.ID].Question() != "" {
+			snap.Sessions[i].State = model.Asked
+		}
+	}
+	return snap
+}
+
 func (a *App) handle(ev event) {
 	a.dirty = true
 	switch ev.kind {
@@ -347,7 +358,7 @@ func (a *App) handle(ev event) {
 		}
 	case evSnapshot:
 		a.loading = false
-		a.snap, a.convs = ev.snap, ev.chats
+		a.snap, a.convs = markAsked(ev.snap, ev.chats), ev.chats
 		a.rebuild()
 		a.updateLabels()
 		a.runPendingMoves()

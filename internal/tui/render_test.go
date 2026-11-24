@@ -32,8 +32,9 @@ func TestRender(t *testing.T) {
 		t.Logf("%v: rendering without panes", err)
 	}
 	collect := func() {
-		a.snap = a.col.Collect(context.Background())
-		a.convs = readChats(&a.chats, a.snap.Sessions)
+		snap := a.col.Collect(context.Background())
+		a.convs = readChats(&a.chats, snap.Sessions)
+		a.snap = markAsked(snap, a.convs)
 		a.loading = false
 		a.rebuild()
 		a.relayout() // sends pane resizes, as the event loop does

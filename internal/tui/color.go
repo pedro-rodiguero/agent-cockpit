@@ -49,6 +49,7 @@ var palette256 = map[rgb]uint8{
 	cGold:     136,
 	cGoldHi:   179,
 	cWaiting:  173,
+	cAsked:    109,
 	cStuck:    167,
 	cBusy:     178,
 	cIdle:     243,

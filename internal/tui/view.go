@@ -114,7 +114,7 @@ func (a *App) header(w int) []string {
 	l1 := left + paint(cInk, cBg, strings.Repeat(" ", gap)) + right
 
 	l2 := paint(cInk, cBg, " ")
-	for _, st := range []model.State{model.Waiting, model.Stuck, model.Inbox, model.Busy, model.Idle} {
+	for _, st := range []model.State{model.Waiting, model.Asked, model.Stuck, model.Inbox, model.Busy, model.Idle} {
 		l2 += a.stateChip(st)
 	}
 	switch {

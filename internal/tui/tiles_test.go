@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
@@ -115,5 +116,21 @@ func TestLabelDiff(t *testing.T) {
 	cleared, after := labelDiff(shown, nil)
 	if len(cleared) != 2 || cleared["s1"] != "" || len(after) != 0 {
 		t.Errorf("clear all = %v, %v", cleared, after)
+	}
+}
+
+func TestMarkAsked(t *testing.T) {
+	question := chat.Conversation{Lines: []chat.Line{{Kind: chat.Assistant, Text: "Should I push?"}}}
+	snap := model.Snapshot{Sessions: []model.Session{
+		{ID: "a", State: model.Idle},
+		{ID: "b", State: model.Idle},
+		{ID: "c", State: model.Busy},
+	}}
+	chats := map[string]chat.Conversation{"b": question, "c": question}
+	got := markAsked(snap, chats).Sessions
+	for i, want := range []model.State{model.Idle, model.Asked, model.Busy} {
+		if got[i].State != want {
+			t.Errorf("session %s: state %s, want %s", got[i].ID, got[i].State, want)
+		}
 	}
 }

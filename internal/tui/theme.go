@@ -27,6 +27,7 @@ var (
 	cGold     = rgb{0xc0, 0x8a, 0x2e}
 	cGoldHi   = rgb{0xdc, 0xb1, 0x5a}
 	cWaiting  = rgb{0xd9, 0x80, 0x3f}
+	cAsked    = rgb{0x7f, 0xae, 0xb0} // the one cool color: a question for the person stands out from the warm greys
 	cStuck    = rgb{0xc2, 0x5a, 0x43}
 	cBusy     = rgb{0xc9, 0xa5, 0x4e}
 	cIdle     = rgb{0x6f, 0x65, 0x53}
@@ -129,6 +130,7 @@ type stateLook struct {
 
 var looks = map[model.State]stateLook{
 	model.Waiting: {"▲", "waiting", cWaiting},
+	model.Asked:   {"?", "your turn", cAsked},
 	model.Stuck:   {"✕", "stuck?", cStuck},
 	model.Inbox:   {"✉", "inbox", cInbox},
 	model.Busy:    {"●", "working", cBusy},

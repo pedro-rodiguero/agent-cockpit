@@ -12,18 +12,6 @@ import (
 // Drawing reads App state and the pane client's screens and does nothing else: no I/O, no state
 // changes. Everything it needs was prepared by the event loop (tiles, layout, conversations).
 
-const (
-	kvLabelWidth = 11 // the key column of the list view's details
-)
-
-// List view columns, in cells.
-const (
-	colState, colAgent, colName, colDir, colAge, colTTY = 3, 9, 22, 28, 7, 9
-	minSubjectWidth                                     = 10
-)
-
-// ago formats how long ago t was as a duration that cannot be read as a clock time: "45s", "12m",
-// "2h05m", "19h", "3d". Minutes stop mattering after a few hours.
 func ago(t, now time.Time) string {
 	if t.IsZero() {
 		return "—"
@@ -234,141 +222,87 @@ func tailN(s []string, n int) []string {
 
 // ---------- list ----------
 
+// List view columns, in cells. The name takes what the others leave.
+const (
+	colMark, colGlyph, colState, colDir, colAgent, colWhere = 1, 2, 15, 26, 14, 7
+	minListNameWidth                                        = 10
+	maxListNameWidth                                        = 64 // past this the other columns drift too far from the name
+)
+
+// listBody is the list of tiles above a reading pane for the selected one.
 func (a *App) listBody() []string {
 	l := a.lay
 	w := l.w
 	var out []string
 	add := func(s string) { out = append(out, pad(s, w, cBg)) }
 	now := time.Now()
-	wSubj := max(minSubjectWidth, w-(colState+colAgent+colName+colDir+colAge+colTTY)-2)
+	wName := min(maxListNameWidth, max(minListNameWidth, w-(colMark+colGlyph+colState+colDir+colAgent+colWhere)-1))
 	add(paint(cLine, cBg, strings.Repeat("─", w)))
-	add(paint(cFaint, cBg, " "+fit("", colState)+fit("AGENT", colAgent)+fit("SESSION", colName)+fit("DIR", colDir)+
-		fit("FOR", colAge)+fit("TTY", colTTY)+fit("SUBJECT", wSubj)))
+	add(paint(cFaint, cBg, " "+fit("", colMark+colGlyph-1)+fit("SESSION", wName)+fit("STATE", colState)+
+		fit("DIR", colDir)+fit("AGENT", colAgent)+fit("WHERE", colWhere)))
 	if len(a.tiles) == 0 {
 		add(paint(cMuted, cBg, a.emptyMessage()))
 	}
 	sel := a.cur()
 	for i := l.first; i < l.first+l.count; i++ {
-		add(listRow(a.tiles[i], i == sel, wSubj, now))
+		add(listRow(a.tiles[i], i == sel, wName, now))
 	}
-	for len(out) < l.bodyH-listDetailRows {
+	for len(out) < listHeadRows+l.perPage {
 		add("")
 	}
 	add(paint(cLine, cBg, strings.Repeat("─", w)))
-	return append(out, a.listDetails(w, now)...)
+	if t, ok := a.selected(); ok {
+		h := l.bodyH - len(out)
+		var pane []string
+		if t.pane != nil && a.mc != nil {
+			pane, _ = a.paneContent(t, w, h, false)
+		} else if t.sess != nil {
+			pane = a.sessionContent(t, w, h)
+		}
+		for _, row := range pane {
+			add(row)
+		}
+	}
+	return out
 }
 
-func listRow(t tile, selected bool, wSubj int, now time.Time) string {
+func listRow(t tile, selected bool, wName int, now time.Time) string {
 	bg, mark := cBg, " "
 	if selected {
 		bg, mark = cPanel, "▌"
 	}
 	st := t.state()
 	l := look(st)
-	nameFg, subjFg, ageFg := cSoft, cMuted, cFaint
-	if st.NeedsAttention() {
-		nameFg, subjFg, ageFg = cInk, cSoft, l.color
+	nameFg, stateFg := cSoft, cFaint
+	if st.NeedsAttention() || st == model.Busy {
+		nameFg, stateFg = cInk, l.color
 	}
 	if selected {
 		nameFg = cGoldHi
 	}
-	dir, tty, subj := "", "", ""
+	state := l.label + " " + ago(since(t), now)
+	dir, where := "", ""
 	if t.sess != nil {
-		dir, tty, subj = tilde(t.sess.Cwd), strings.TrimPrefix(t.sess.TTY, "tty"), listSubject(*t.sess)
+		dir, where = tilde(t.sess.Cwd), strings.TrimPrefix(t.sess.TTY, "tty")
 	}
 	if t.pane != nil {
-		dir, tty = tilde(t.pane.Cwd), "◧ pane"
+		dir, where = tilde(t.pane.Cwd), "◧ pane"
+		if t.pane.Exited {
+			state = "ended"
+		}
+	}
+	if t.isItem() {
+		state, dir = firstOf(t.sess.Detail, "item")+" "+ago(since(t), now), ""
 	}
 	agent := t.agent()
 	if t.sess != nil && t.sess.Profile != "" {
-		agent += "²"
+		agent += " " + t.sess.Profile
 	}
-	return paint(cGold, bg, mark) + paint(l.color, bg, fit(l.glyph, colState)) + paint(cMuted, bg, fit(agent, colAgent)) +
-		sgr(nameFg, bg, selected) + fit(t.name(), colName) +
+	return paint(cGold, bg, mark) + paint(l.color, bg, fit(l.glyph, colGlyph)) +
+		sgr(nameFg, bg, selected) + fit(t.name(), wName) +
+		paint(stateFg, bg, fit(state, colState)) +
 		paint(cMuted, bg, fit(fitLeft(dir, colDir-1), colDir)) + // one cell of gap before the next column
-		paint(ageFg, bg, fit(ago(since(t), now), colAge)) + paint(cFaint, bg, fit(tty, colTTY)) + paint(subjFg, bg, fit(subj, wSubj))
-}
-
-// listSubject is what a session is about, led by why it needs the person when it does.
-func listSubject(s model.Session) string {
-	subj := s.Title
-	if s.State.NeedsAttention() && s.Detail != "" {
-		subj = s.Detail + " · " + subj
-	}
-	return firstOf(subj, s.LastPrompt)
-}
-
-// listDetails describes the selected tile below the list.
-func (a *App) listDetails(w int, now time.Time) []string {
-	var out []string
-	row := func(label, value string, fg rgb) {
-		out = append(out, pad(paint(cGold, cBg, fit("  "+label, kvLabelWidth))+paint(fg, cBg, fit(value, w-kvLabelWidth)), w, cBg))
-	}
-	t, ok := a.selected()
-	switch {
-	case !ok:
-		return nil
-	case t.sess == nil:
-		row("pane", t.name()+"   "+t.pane.Agent+fmt.Sprintf(" · pid %d", t.pane.PID), cInk)
-		row("dir", tilde(t.pane.Cwd), cSoft)
-		return out
-	}
-	s := t.sess
-	meta := []string{s.Agent}
-	if s.Profile != "" {
-		meta = append(meta, "profile "+s.Profile)
-	}
-	if s.PID != 0 {
-		meta = append(meta, fmt.Sprintf("pid %d", s.PID))
-	}
-	if t.pane != nil {
-		meta = append(meta, "cockpit pane")
-	} else if s.TTY != "" {
-		meta = append(meta, s.TTY)
-	}
-	info := a.convs[s.ID].Info
-	for _, v := range []string{info.Model, info.Mode, info.Effort} {
-		if v != "" {
-			meta = append(meta, v)
-		}
-	}
-	if ctx, _ := contextSize(info); ctx != "" {
-		meta = append(meta, ctx)
-	}
-	row("session", s.Name+"   "+strings.Join(meta, " · "), cInk)
-
-	stateLine := look(s.State).label + " · for " + ago(since(t), now)
-	if detail := stateDetail(*s, info); detail != "" {
-		stateLine += " · " + detail
-	}
-	row("state", stateLine, look(s.State).color)
-	dir := firstOf(tilde(s.Cwd), "—")
-	if info.Branch != "" {
-		dir += "  " + branchGlyph + info.Branch
-	}
-	row("dir", dir, cSoft)
-	row("subject", firstOf(s.Title, "—"), cSoft)
-
-	promptLabel := "prompt"
-	if s.State == model.Inbox {
-		promptLabel = "text"
-	}
-	pr := wrap(s.LastPrompt, w-kvLabelWidth)
-	row(promptLabel, firstOf(lineAt(pr, 0), "—"), cMuted)
-	row("", lineAt(pr, 1), cMuted)
-	if s.URL != "" {
-		row("link", s.URL, cFaint)
-	} else {
-		row("log", firstOf(s.Log, "—"), cFaint)
-	}
-	return out
-}
-
-func lineAt(s []string, i int) string {
-	if i < len(s) {
-		return s[i]
-	}
-	return ""
+		paint(cMuted, bg, fit(agent, colAgent)) + paint(cFaint, bg, fit(where, colWhere))
 }
 
 // ---------- footer ----------

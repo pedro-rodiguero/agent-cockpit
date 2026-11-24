@@ -18,9 +18,11 @@ const (
 	maxRailW      = 46
 	minRailWindow = 110
 
-	listHeadRows   = 2 // separator and column titles
-	listDetailRows = 8 // separator and the selected session's details
-	minListRows    = 3
+	// The list view's rows take at most listPercent of the body; the selected tile's reading pane
+	// below them takes the rest.
+	listHeadRows = 2 // separator and column titles
+	listPercent  = 40
+	minListRows  = 3
 )
 
 // cellAspect is how many times taller than wide a terminal cell is, roughly. bestGrid multiplies card
@@ -71,7 +73,7 @@ func computeLayout(w, h, n, railN int, view viewKind, zoom bool, sel, page int) 
 	capC, capR := max(1, l.gridW/minCellW), max(1, l.bodyH/minCellH)
 	switch {
 	case view == listView:
-		l.perPage = listRows(l.bodyH)
+		l.perPage = listRows(l.bodyH, n)
 	case zoom:
 		l.perPage = 1
 	default:
@@ -96,8 +98,10 @@ func computeLayout(w, h, n, railN int, view viewKind, zoom bool, sel, page int) 
 // inRail reports whether tile i is in the rail.
 func (l layout) inRail(i int) bool { return l.rail.w > 0 && i >= l.mainN }
 
-// listRows is how many session rows the list view shows in a body of bodyH rows.
-func listRows(bodyH int) int { return max(minListRows, bodyH-listHeadRows-listDetailRows) }
+// listRows is how many of n tile rows the list view shows in a body of bodyH rows.
+func listRows(bodyH, n int) int {
+	return max(minListRows, min(n, bodyH*listPercent/100-listHeadRows))
+}
 
 // bestGrid picks the columns and rows for n cards in a W×H body, at most capC×capR, that make the
 // cards as large as possible.

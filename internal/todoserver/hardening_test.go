@@ -3,6 +3,7 @@ package todoserver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"log"
@@ -194,7 +195,10 @@ func TestWrongTypesNeverCrash(t *testing.T) {
 		"/api/login/passkey": {"id", "clientDataJSON", "authenticatorData", "signature", "userHandle"},
 	}
 	values := []any{nil, true, 0, -1, 1e308, "", []any{}, []any{1, "a"}, map[string]any{}, map[string]any{"__proto__": 1}, strings.Repeat("x", 1000)}
+	n := 0
 	for path, names := range fields {
+		n++
+		c.ip = fmt.Sprintf("198.51.100.%d", n) // each route from its own IP: together they exceed the per-IP limit
 		method := "POST"
 		if strings.HasPrefix(path, "/api/tasks/") {
 			method = "PATCH"

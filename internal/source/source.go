@@ -73,6 +73,9 @@ func (c *Collector) Collect(ctx context.Context) model.Snapshot {
 		if a.Agent != b.Agent {
 			return a.Agent < b.Agent
 		}
+		if a.State == model.Todo {
+			return false // a to-do list keeps the order its source gave it
+		}
 		return a.Name < b.Name
 	})
 	if len(snap.Errors) == 0 {

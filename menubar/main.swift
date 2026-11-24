@@ -22,7 +22,7 @@ enum Tuning {
 /// What a session needs from the person, if anything. Values cockpit adds later decode as `.idle`, so
 /// an older menu bar app keeps working against a newer binary.
 enum SessionState: String, Decodable, CaseIterable {
-    case waiting, asked, stuck, inbox, busy, idle
+    case waiting, asked, stuck, inbox, busy, idle, todo
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -39,7 +39,7 @@ enum SessionState: String, Decodable, CaseIterable {
         case .stuck: return Palette.stuck
         case .inbox: return Palette.inbox
         case .busy: return Palette.busy
-        case .idle: return .secondaryLabelColor
+        case .idle, .todo: return .secondaryLabelColor
         }
     }
 
@@ -51,6 +51,7 @@ enum SessionState: String, Decodable, CaseIterable {
         case .inbox: return "✉"
         case .busy: return "●"
         case .idle: return "○"
+        case .todo: return "□"
         }
     }
 }
@@ -378,6 +379,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
             ("Needs you", { $0.needsYou }),
             ("Working", { $0 == .busy }),
             ("Idle", { $0 == .idle }),
+            ("To do", { $0 == .todo }),
         ]
         if let failure = failure {
             menu.addItem(disabled(failure.message))

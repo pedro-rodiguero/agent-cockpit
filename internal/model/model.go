@@ -17,6 +17,7 @@ const (
 	Busy    State = "busy"    // a turn is in progress
 	Idle    State = "idle"    // the turn ended; the next move is the person's
 	Inbox   State = "inbox"   // not an agent: something waiting to be read or answered elsewhere
+	Todo    State = "todo"    // a task on a to-do list: listed, never counted as needing the person
 )
 
 // Rank orders states by urgency, most urgent first.
@@ -32,6 +33,8 @@ func (s State) Rank() int {
 		return 3
 	case Busy:
 		return 4
+	case Todo:
+		return 6
 	default:
 		return 5
 	}
@@ -71,6 +74,9 @@ type Session struct {
 	// Quiet items are listed but never raise a desktop notification, for sources whose backend
 	// already notifies the person on its own.
 	Quiet bool `json:"quiet,omitempty"`
+	// Group is the section a to-do task is listed under ("Work", "Personal"); Due is when it is due.
+	Group string    `json:"group,omitempty"`
+	Due   time.Time `json:"due,omitzero"`
 
 	// Agent-specific handles used to act on the session.
 	Profile     string `json:"profile,omitempty"`     // Claude config profile name, "" for the default

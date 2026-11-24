@@ -37,13 +37,19 @@ Every field is optional. The full list, with comments, is `model.Session` in
 | `id` | its position | stable identifier; cockpit prefixes it with `<name>:` |
 | `agent` | `<name>` | label shown on the card |
 | `name` | | who or what the item is about; the card's title |
-| `state` | `inbox` | `inbox`, or an agent state (`waiting`, `asked`, `busy`, `idle`) for sessions running elsewhere |
+| `state` | `inbox` | `inbox`; `todo` for a task on a to-do list; or an agent state (`waiting`, `asked`, `busy`, `idle`) for sessions running elsewhere |
 | `detail` | | one or two words on why it is here: `question`, `review requested`, `alert high` |
 | `title` | | the subject |
 | `lastPrompt` | | the body; wrapped on the card |
 | `since` | | RFC 3339 time the item arrived; used for ordering and age |
 | `url` | | opened when the person presses `⏎` on the card |
 | `quiet` | `false` | `true` keeps the menu bar app from notifying, for backends that already notify |
+| `group` | | for `todo`: the section of the rail the task is listed under, such as `Work` or `Personal` |
+| `due` | | for `todo`: RFC 3339 time the task is due; the rail says how soon, or how late |
+
+Tasks (`state: "todo"`) are listed in the order the source prints them, in the rail on the right of the
+grid, one section per `group` in the order the groups first appear. They never count as needing you
+and never notify.
 
 ### Example
 

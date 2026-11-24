@@ -43,6 +43,21 @@ func TestCollectorMarksSilentBusySessionsStuckAndSortsByUrgency(t *testing.T) {
 	}
 }
 
+func TestCollectorKeepsToDoTasksInTheirSourcesOrder(t *testing.T) {
+	c := &Collector{Sources: []Source{fixed{"a", []model.Session{
+		{ID: "z-first", Agent: "todo", Name: "Zebra", State: model.Todo},
+		{ID: "idle", Agent: "claude", Name: "x", State: model.Idle},
+		{ID: "a-second", Agent: "todo", Name: "Apple", State: model.Todo},
+	}}}}
+	var order []string
+	for _, s := range c.Collect(context.Background()).Sessions {
+		order = append(order, s.ID)
+	}
+	if got := strings.Join(order, " "); got != "idle z-first a-second" {
+		t.Errorf("order = %s", got)
+	}
+}
+
 func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

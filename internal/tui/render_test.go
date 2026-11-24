@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -11,7 +12,7 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/source"
 )
 
-// COCKPIT_RENDER=out.ans [COCKPIT_SPAWN=claude:/dir] go test ./internal/tui -run TestRender
+// COCKPIT_RENDER=out.ans [COCKPIT_RENDER_SIZE=160x44] [COCKPIT_SPAWN=claude:/dir] go test ./internal/tui -run TestRender
 // writes one grid frame and one list frame with live data, optionally after opening a pane in an
 // already running pane server. Colors follow the terminal, as on screen; COCKPIT_COLOR forces a depth.
 func TestRender(t *testing.T) {
@@ -21,6 +22,11 @@ func TestRender(t *testing.T) {
 	}
 	a := newApp(source.Default(), Options{Grid: true})
 	a.w, a.h = 204, 54
+	if size := os.Getenv("COCKPIT_RENDER_SIZE"); size != "" {
+		if _, err := fmt.Sscanf(size, "%dx%d", &a.w, &a.h); err != nil {
+			t.Fatalf("COCKPIT_RENDER_SIZE %q: want COLSxROWS", size)
+		}
+	}
 	// Attach only to a server that is already running: the test must not start one.
 	mc, err := mux.Connect()
 	if err == nil {

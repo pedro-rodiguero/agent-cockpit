@@ -1,3 +1,4 @@
 bin/
 *.ans
 menubar/.build/
+menubar/.build-*/

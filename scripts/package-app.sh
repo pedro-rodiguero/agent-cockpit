@@ -9,14 +9,19 @@ LABEL="io.github.pedro-rodiguero.agent-cockpit"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 APP="$work/Agent Cockpit.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$OUT"
+bins=()
 
 for arch in arm64 amd64; do
 	CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$work/cockpit-$arch" ./cmd/cockpit
 done
 lipo -create -output "$APP/Contents/MacOS/cockpit" "$work/cockpit-arm64" "$work/cockpit-amd64"
 
-swift build -c release --arch arm64 --arch x86_64 --package-path menubar
-cp menubar/.build/apple/Products/Release/AgentCockpit "$APP/Contents/MacOS/AgentCockpit"
+# One architecture at a time: building both at once goes through XCBuild, which loses SwiftTerm.
+for arch in arm64 x86_64; do
+	swift build -c release --arch $arch --package-path menubar --scratch-path "menubar/.build-$arch"
+	bins+=("$(swift build -c release --arch $arch --package-path menubar --scratch-path "menubar/.build-$arch" --show-bin-path)/AgentCockpit")
+done
+lipo -create -output "$APP/Contents/MacOS/AgentCockpit" "${bins[@]}"
 cp menubar/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cat >"$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

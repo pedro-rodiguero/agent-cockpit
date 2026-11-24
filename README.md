@@ -56,6 +56,10 @@ own, shows each one as a card with its live conversation, and keeps what needs y
   card says so until then (`⏎` on it again cancels).
 - **Talks back without moving anything.** `o` jumps to a session's Terminal.app or iTerm2 tab; `r` sends a
   message to a Claude Code session without leaving the dashboard.
+- **Keeps your to-do list next to the sessions.** The top of the rail is a to-do list: `+` adds a task
+  in one line (`call the venue @tomorrow #personal`), space completes it, `⏎` edits it. Tasks from other
+  tools (an issue tracker, a team board) can join it through an external source, each in its own
+  section.
 - **Labels your tabs.** Each terminal tab's title shows its session's state and name (`t` toggles it).
 - **Menu bar app (optional).** `◆ ▲1 ●3` in the menu bar, a list of sessions, and a macOS notification
   when a session starts waiting, looks stuck, or finishes a turn that took more than a minute.
@@ -99,6 +103,8 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 | `x` | close a pane (stops its agent) |
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |
+| `+` | new task: `#group` and `@date` (`today`, `tomorrow`, `25/12`, `2027-01-31`) are optional |
+| `space` | complete the selected task · `u` reopens it · `⏎` edits it · `x` deletes it |
 | `?` | every key; the footer always shows the ones for the selected card |
 
 ## Configuration
@@ -110,6 +116,12 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 | `COCKPIT_SOURCES` | all | comma-separated sources to enable (`claude,codex,agy,<external>`) |
 | `COCKPIT_COLOR` | detected | `truecolor` or `256`; cockpit uses 24-bit color only where the terminal announces it (Terminal.app before macOS 26 does not) |
 
+The to-do list is `~/Library/Application Support/agent-cockpit/todo.json`. Its `settings` set the group
+of a task typed without one (`defaultGroup`), and can show one group inside another, marked with its
+name (`"fold": {"Side project": "Personal"}`), optionally only while a host answers
+(`"foldWhenReachable": "10.0.0.5:443"`, for a list that should look different at the office). Completed
+tasks move to `todo-done.jsonl` after a week.
+
 A Claude profile other than the default one can keep a long-lived OAuth token (from
 `claude setup-token`) in `<profile dir>/token`; panes started for that profile use it.
 
@@ -120,6 +132,7 @@ A Claude profile other than the default one can keep a long-lived OAuth token (f
 | claude | `<config>/sessions/<pid>.json`, kept current by Claude Code, plus the transcript | exact |
 | codex  | the rollout `.jsonl` the `codex` process writes; the last turn event | exact for turns |
 | agy    | the conversation database the `agy` process holds open; written in the last 20s means working | estimated, never "waiting" |
+| tasks  | cockpit's to-do list | exact |
 
 Anything else (a review queue, an issue tracker, a team inbox) can show up as cards through an
 **external source**: an executable named `cockpit-source-<name>` on your `PATH` that prints a JSON array

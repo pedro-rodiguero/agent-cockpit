@@ -26,6 +26,7 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 | `cmd/cockpit` | command-line entry point: dashboard, `serve`, `panes`, `json`, `open` |
 | `internal/model` | `Session`, `State`, `Snapshot`: the types every other package shares |
 | `internal/source` | finding sessions: one `Source` per agent, external sources, and the `Collector` that merges them |
+| `internal/todo` | the to-do list: tasks in a JSON file, quick-add parsing, history |
 | `internal/chat` | turning a transcript into short chat lines for a card |
 | `internal/mux` | the pane server, its client, and the renderer that turns an emulator screen into themed ANSI rows |
 | `internal/tui` | the dashboard: raw terminal I/O, layout, drawing, keys |
@@ -34,8 +35,8 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 | `internal/tailfile` | reading the end of an append-only log on a line boundary |
 | `menubar` | the Swift menu bar app |
 
-Dependencies point down the table: `tui` uses `source`, `chat`, `mux`, `peer` and `term`; none of those
-use `tui`, and `model` uses nothing.
+`tui` uses `source`, `todo`, `chat`, `mux`, `peer` and `term`, and `source` uses `todo` for the tasks
+source; none of those use `tui`, and `model` uses nothing.
 
 ## Collecting sessions
 

@@ -5,7 +5,8 @@ seconds (`-interval`), in parallel, with a four-second timeout per source, and m
 
 There are two kinds:
 
-- **Built-in sources** (`internal/source`) know a coding agent's own files: Claude Code, Codex, agy.
+- **Built-in sources** (`internal/source`) know a coding agent's own files: Claude Code, Codex, agy;
+  and `tasks` lists cockpit's own to-do list.
 - **External sources** are programs you install; cockpit runs them and reads their output. Use one for
   anything that is not a coding agent running on this machine.
 
@@ -48,8 +49,9 @@ Every field is optional. The full list, with comments, is `model.Session` in
 | `due` | | for `todo`: RFC 3339 time the task is due; the rail says how soon, or how late |
 
 Tasks (`state: "todo"`) are listed in the order the source prints them, in the rail on the right of the
-grid, one section per `group` in the order the groups first appear. They never count as needing you
-and never notify.
+grid, one section per `group` in the order the groups first appear, after the tasks of cockpit's own
+list or before them, by source name. They never count as needing you and never notify, and they are
+read-only in cockpit: `⏎` opens their `url`.
 
 ### Example
 

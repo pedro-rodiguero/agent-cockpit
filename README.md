@@ -5,43 +5,49 @@ A terminal dashboard for people who run many coding-agent sessions at once.
 When a dozen Claude Code, Codex and Antigravity (`agy`) sessions live in a dozen terminal tabs, every
 tab looks the same: you can't tell which one is waiting for an answer, which one has been "thinking"
 for twenty minutes, or which one finished while you were elsewhere. cockpit finds those sessions on its
-own, shows each one as a card with its live conversation, and sorts what needs you to the top.
+own, shows each one as a card with its live conversation, and keeps what needs you in front.
 
 ```
- ◆ AGENT COCKPIT  grid 2×1                                                                 14:32:07 
- ▲ 1 waiting   ✕ 0 stuck?   ✉ 0 inbox   ● 1 working   ○ 0 idle   ◧ 0 panes
-╭ ▲ api-auth ───────────────── claude · s004 · 1 ╮╭ ● web-next ──────────── claude work · s007 · 2 ╮
-│ ~/src/api  ⎇ feat/limits   opus-5-5 · 212k ctx ││ ~/src/web  ⎇ main           opus-5-5 · 88k ctx │
-│ Rate limiting for the login route              ││ Flaky snapshot tests                           │
-│ › add rate limiting to the login route         ││ › why do the auth snapshots fail on CI?        │
-│ ⏺ Edit ~/src/api/limits.ts                     ││ · 6 tool calls                                 │
-│ Done. Want me to wire it into the gateway?     ││ ⏺ Read ~/src/web/test/auth.snap                │
-│                                                ││ Two snapshots depend on the clock.             │
-│ ▲ waiting 2m · permission prompt          plan ││ ● working 14m · Bash npm test -- auth     high │
-╰ ⏎ continue here · o go to tab · r reply ───────╯╰────────────────────────────────────────────────╯
+ ◆ AGENT COCKPIT  grid 2×1                                                                         14:32:07
+ ▲ 1 waiting   ? 1 your turn   ✕ 0 stuck?   ✉ 1 inbox   ● 0 working   ○ 2 idle   ◧ 0 panes
+╭ ▲ Login rate limit ──── claude · 1 ╮╭ ? Auth snapshots ─ claude work · 2 ╮│ INBOX                       1
+│ ~/src/api  ⎇ feat/limits  212k ctx ││ ~/src/web  ⎇ main          88k ctx ││ ✉ payments PR review       3h
+│ › add rate limiting to login       ││ › why do the snapshots fail on CI? ││   pull request · #412
+│ ⏺ Edit ~/src/api/limits.ts         ││ Two snapshots read the clock; I    ││
+│ Added a sliding-window limiter,    ││ froze it in the test setup.        ││ IDLE 1h+                    2
+│ five tries a minute per IP.        ││ ⋯                                  ││ ○ Migrate to Postgres 17  19h
+│                                    ││ Should I also pin the timezone?    ││   ~/src/db · s002
+│ ▲ waiting 2m · permission     plan ││ ? your turn 14m               high ││ ○ Release notes for 2.3    2d
+╰────────────────────────────────────╯╰────────────────────────────────────╯│   ~/src/app · s009
+ ⏎ continue here   o go to tab   r reply   z zoom   │  n new   ! next needing me   v list   ? keys
 ```
 
 ## What it does
 
 - **Finds sessions without setup.** It reads the state files that Claude Code and Codex already write,
   and the process table; nothing has to be started through cockpit.
-- **Shows what each session is doing.** Every card has the directory and git branch, the model and
-  how much context it holds, what the session is about, your last prompt, the end of the conversation,
-  and a state line with the tool call running right now:
+- **Shows what each session is doing.** Every card is titled with what the session is about and has
+  the directory and git branch, the model and how much context it holds, your last prompt, the agent's
+  last reply (from its first line, with a closing question kept in view), and a state line with the
+  tool call running right now:
 
-  | glyph | state   | meaning |
-  |-------|---------|---------|
-  | ▲ | waiting | the agent asked a question or a permission |
-  | ✕ | stuck?  | working, but nothing written for a while (`COCKPIT_STUCK_AFTER`, default 10m) |
-  | ✉ | inbox   | an item from an external source (see below) |
-  | ● | working | a turn is in progress |
-  | ○ | idle    | the turn ended; your move |
+  | glyph | state     | meaning |
+  |-------|-----------|---------|
+  | ▲ | waiting   | the agent is blocked on a question or a permission prompt |
+  | ? | your turn | the turn ended with the agent asking you something |
+  | ✕ | stuck?    | working, but nothing written for a while (`COCKPIT_STUCK_AFTER`, default 10m) |
+  | ✉ | inbox     | an item from an external source (see below) |
+  | ● | working   | a turn is in progress |
+  | ○ | idle      | the turn ended; your move |
 
-- **Fits the window.** The grid picks its columns and rows from the terminal size and pages when the
-  cards don't fit. `v` switches to a dense list.
+- **Keeps the grid for what is happening.** Sessions idle for over an hour, inbox items and panes whose
+  program exited move to a rail on the right, two rows each, so the cards go to the sessions that are
+  working or waiting for you. The grid picks its columns and rows from the window size and pages when
+  the cards don't fit. `v` switches to a list with a reading pane for the selected session.
 - **Runs agents in panes.** `n` starts Claude Code, Codex, agy or a shell inside a card: a real
   interactive terminal. The panes belong to a small background server (`cockpit serve`), so they keep
-  running after you close the dashboard and come back when you reopen it.
+  running after you close the dashboard and come back when you reopen it. `⏎` on a pane whose program
+  exited reopens it, resuming the same conversation when cockpit knows which one it was.
 - **Continues any session here.** `⏎` on a Claude Code or Codex session running in a terminal tab
   offers to continue it in cockpit: once you confirm, the agent in the tab stops and the same
   conversation resumes in a pane, in the same directory and with the same Claude profile, so memory,
@@ -83,8 +89,8 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 
 | key | action |
 |-----|--------|
-| `←↑↓→` `hjkl` | move · `tab` next · `1`–`9` card on this page · `[` `]` page |
-| `⏎` | type into a pane · continue a tab's session here (asks first) · open an inbox item |
+| `←↑↓→` `hjkl` | move; right from the last column enters the rail · `tab` next · `1`–`9` card on this page · `[` `]` page |
+| `⏎` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
 | `o` | go to the session's terminal tab |
 | `ctrl-q` | leave a pane (every other key goes to the agent) |
 | `n` | new pane: `↑↓` picks the agent (one entry per Claude profile), `tab` completes the folder |
@@ -93,6 +99,7 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 | `x` | close a pane (stops its agent) |
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |
+| `?` | every key; the footer always shows the ones for the selected card |
 
 ## Configuration
 

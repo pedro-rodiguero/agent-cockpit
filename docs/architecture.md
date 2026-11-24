@@ -82,6 +82,14 @@ Keys go to the dashboard in navigation mode. In insert mode they go to the selec
 `ctrl-q`, which returns to navigation; pasted text is sent with the server's `paste` operation, which
 brackets it only if the program in the pane enabled bracketed paste.
 
+Each tile has a place. Sessions that are working, blocked on the person or recently active get cards;
+inbox items, panes whose program exited and sessions idle for over an hour go to the rail, a column on
+the right of the grid. The place is computed from the snapshot when tiles are rebuilt, and the grid
+view orders tiles by place, so the layout only needs to know how many at the end belong in the rail.
+
+The asked state is the dashboard's, not a source's: sources report what the agent says (its turn is
+over), and the dashboard moves an idle session to asked when its transcript ends with a question.
+
 Transcripts are read by the collect goroutine and delivered with each snapshot. Drawing reads only the
 dashboard's state: it does no I/O, and the layout (grid size, page, card sizes) is computed in the loop
 before each frame, which is also where pane resizes are sent from.

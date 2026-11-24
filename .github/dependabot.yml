@@ -1,0 +1,29 @@
+# Weekly dependency updates. Go modules come grouped (minor and patch) and wait a week after release, as a
+# compromised version is usually pulled within hours; security updates come at once, one per alert.
+# Actions are pinned by SHA and updated here; the tool images in security.yml are updated by hand.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      go-minor-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        update-types: [minor, patch, major]

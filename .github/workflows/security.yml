@@ -1,0 +1,128 @@
+name: security
+
+# The security routine (see docs/security.md): known vulnerabilities, fuzzing, static analysis, secrets
+# in the whole history, and a passive scan of the to-do server. Tools are pinned by version and digest;
+# Dependabot updates the actions, the images are updated by hand.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays: new vulnerabilities appear without a push
+
+permissions:
+  contents: read
+
+env:
+  SEMGREP_IMAGE: semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
+  GOVULNCHECK: golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+jobs:
+  govulncheck:
+    name: Known vulnerabilities (govulncheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - run: go run "$GOVULNCHECK" ./...
+
+  fuzz:
+    name: Fuzzing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      # Each target from its seed corpus for a minute. A failure leaves the input in testdata/fuzz, in the
+      # artifact below: commit it, and it becomes a regular test case.
+      - run: |
+          go test ./internal/todo -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s
+          go test ./internal/todo -run '^$' -fuzz '^FuzzMerge$' -fuzztime 60s
+          go test ./internal/auth -run '^$' -fuzz '^FuzzTOTP$' -fuzztime 60s
+          go test ./internal/auth -run '^$' -fuzz '^FuzzStoredHash$' -fuzztime 60s
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-failures
+          path: "**/testdata/fuzz/"
+
+  semgrep:
+    name: Static analysis (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Semgrep (OWASP Top 10, Go, JavaScript, secrets); ERROR findings fail
+        run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD:/src" -w /src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            "$SEMGREP_IMAGE" semgrep scan --metrics=off --disable-version-check \
+            --config p/owasp-top-ten --config p/golang --config p/javascript --config p/secrets \
+            --severity ERROR --error --sarif-output reports/semgrep.sarif
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: semgrep
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gitleaks:
+    name: Secrets in the whole history (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: |
+          docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --no-banner --exit-code 1
+
+  zap-baseline:
+    name: Passive scan of the to-do server (ZAP baseline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: Start the server with throwaway data
+        run: |
+          go build -o "$RUNNER_TEMP/server" ./cmd/cockpit-todo-server
+          export TODO_DATA="$RUNNER_TEMP/data" TODO_ORIGIN=http://localhost:8740 TODO_ENC_KEY="$(openssl rand -hex 32)"
+          printf 'zap baseline throwaway pass\nzap baseline throwaway pass\n' | "$RUNNER_TEMP/server" set-password
+          nohup "$RUNNER_TEMP/server" serve > "$RUNNER_TEMP/server.log" 2>&1 &
+          for _ in $(seq 30); do curl -fs http://localhost:8740/ > /dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/server.log"; exit 1
+      - name: ZAP baseline
+        run: |
+          mkdir -p zap && cp .zap/rules.tsv zap/ && chmod -R 777 zap
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" "$ZAP_IMAGE" \
+            zap-baseline.py -t http://localhost:8740 -c rules.tsv -I \
+            -r zap-baseline.html -J zap-baseline.json -w zap-baseline.md
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-baseline
+          path: zap/zap-baseline.*
+          if-no-files-found: ignore
+          retention-days: 14

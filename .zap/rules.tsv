@@ -1,0 +1,46 @@
+# OWASP ZAP rules for the baseline scan of cockpit-todo-server (zap-baseline.py -c).
+# Format: <id>\t<IGNORE|INFO|WARN|FAIL|OUTOFSCOPE>\t<name>. Lines starting with # are comments.
+# The scan runs with -I: WARN only shows in the report; FAIL fails the job. Unlisted rules are WARN.
+# Every WARN line says why just above it.
+
+# Headers and cookies the Go suite (hardening_test.go, authn_test.go) already guarantees.
+10010	FAIL	(Cookie No HttpOnly Flag)
+10011	FAIL	(Cookie Without Secure Flag)
+10054	FAIL	(Cookie without SameSite Attribute)
+90033	FAIL	(Loosely Scoped Cookie)
+10020	FAIL	(Anti-clickjacking Header)
+10021	FAIL	(X-Content-Type-Options Header Missing)
+10035	FAIL	(Strict-Transport-Security Header Not Set)
+10038	FAIL	(Content Security Policy (CSP) Header Not Set)
+10055	FAIL	(CSP)
+10063	FAIL	(Permissions Policy Header Not Set)
+10019	FAIL	(Content-Type Header Missing)
+90011	FAIL	(Charset Mismatch)
+10036	FAIL	(HTTP Server Response Header)
+10037	FAIL	(Server Leaks Information via X-Powered-By)
+# Information leaks and errors.
+10023	FAIL	(Information Disclosure - Debug Error Messages)
+90022	FAIL	(Application Error Disclosure)
+10099	FAIL	(Source Code Disclosure)
+10024	FAIL	(Information Disclosure - Sensitive Information in URL)
+10025	FAIL	(Information Disclosure - Sensitive Information in HTTP Referrer Header)
+3	FAIL	(Session ID in URL Rewrite)
+10033	FAIL	(Directory Browsing)
+10097	FAIL	(Hash Disclosure)
+# Third-party code and reflected XSS: the app loads nothing from elsewhere.
+10003	FAIL	(Vulnerable JS Library)
+10017	FAIL	(Cross-Domain JavaScript Source File Inclusion)
+10115	FAIL	(Script Served From Malicious Domain (polyfill))
+10031	FAIL	(User Controllable HTML Element Attribute (Potential XSS))
+10043	FAIL	(User Controllable JavaScript Event (XSS))
+10028	FAIL	(Off-site Redirect)
+10108	FAIL	(Reverse Tabnabbing)
+10098	FAIL	(Cross-Domain Misconfiguration)
+
+# Reviewed by hand: the alert matches words like "user" or "token" in the app's own comments.
+10027	WARN	(Information Disclosure - Suspicious Comments)
+# The app's JS is reviewed for these in hardening_test.go (TestWebAppNeverInterpretsData).
+10110	WARN	(Dangerous JS Functions)
+# Static files are cacheable on purpose; the API answers no-store (TestSecurityHeaders).
+10015	WARN	(Re-examine Cache-control Directives)
+10049	WARN	(Storable and Cacheable Content)

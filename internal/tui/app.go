@@ -40,6 +40,7 @@ const (
 	eventBuffer        = 256
 	readBufSize        = 64 << 10
 	chatLinesPerCard   = 160 // more than the tallest card shows
+	reconnectDelay     = 500 * time.Millisecond
 )
 
 type mode int
@@ -63,6 +64,8 @@ const (
 	evFlash                         // msg: a message for the footer
 	evAlert                         // msg: a message the person must not miss
 	evSelect                        // msg: a session ID to select (cockpit select)
+	evMuxLost                       // mc: a connection to the pane server ended
+	evMuxReplaced                   // an old pane server has exited; connect to a new one
 	evResize                        // the window changed size
 	evQuit                          // a termination signal arrived
 )
@@ -74,6 +77,7 @@ type event struct {
 	snap  model.Snapshot
 	chats map[string]chat.Conversation
 	msg   string
+	mc    paneServer    // evMuxLost: the connection that ended
 	look  appearance    // evSnapshot: the appearance the settings ask for
 	quiet time.Duration // evSnapshot: how long a session idles before it moves to the rail
 }
@@ -138,6 +142,8 @@ type App struct {
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
+	replacing     bool                     // an old pane server was asked to exit
+	saidOld       bool                     // the footer said the pane server is old
 	flash         flash
 
 	scr        *screen
@@ -294,7 +300,7 @@ func (a *App) connectMux() {
 	}
 	a.goSafe(func() {
 		_ = mc.Run()
-		a.post(event{kind: evFlash, msg: "lost connection to cockpit serve"})
+		a.post(event{kind: evMuxLost, mc: mc})
 	})
 }
 
@@ -405,6 +411,18 @@ func (a *App) handle(ev event) {
 	case evPanes:
 		a.muxPending.Store(false)
 		a.rebuild()
+		a.checkServer()
+	case evMuxLost:
+		// The server exited: another dashboard replaced it, or it crashed. Connecting again starts one.
+		if ev.mc == a.mc && !a.replacing {
+			a.replacing = true
+			a.goSafe(func() {
+				time.Sleep(reconnectDelay)
+				a.post(event{kind: evMuxReplaced})
+			})
+		}
+	case evMuxReplaced:
+		a.reconnectMux()
 	case evPaneError:
 		a.onPaneError(ev.msg)
 	case evSpawned:
@@ -609,4 +627,69 @@ func (a *App) selectPending() {
 			return
 		}
 	}
+}
+
+// checkServer replaces a pane server older than this dashboard, which ignores requests it does not
+// know, such as selecting a session from a notification. Replacing it ends its panes, so it waits until
+// no pane's program is running; until then the footer says why some things do not work.
+func (a *App) checkServer() {
+	c, ok := a.mc.(*mux.Client)
+	if !ok || a.replacing {
+		return
+	}
+	v, known := c.ServerVersion()
+	if !known || v >= mux.ProtocolVersion {
+		return
+	}
+	switch {
+	case v < 1: // from before versions: it cannot be asked to exit
+		if !a.saidOld {
+			a.alert("cockpit serve is an older version · restart it when no pane is busy: pkill -f 'cockpit serve'")
+		}
+		a.saidOld = true
+	case livePanes(a.panes) > 0:
+		if !a.saidOld {
+			a.alert("cockpit serve is an older version · it restarts on its own when its last pane closes")
+		}
+		a.saidOld = true
+	default:
+		a.replacing = true
+		if err := c.Send(mux.Msg{Op: mux.OpShutdown}); err != nil {
+			a.replacing = false
+			return
+		}
+		a.goSafe(func() {
+			// Wait for the old server to let go of the socket, so the new connection starts a new one.
+			for i := 0; i < 40; i++ {
+				probe, err := mux.Connect()
+				if err != nil {
+					break
+				}
+				probe.Close()
+				time.Sleep(50 * time.Millisecond)
+			}
+			a.post(event{kind: evMuxReplaced})
+		})
+	}
+}
+
+// reconnectMux connects to the pane server again after the one it was connected to exited, starting a
+// new one if none is running.
+func (a *App) reconnectMux() {
+	if a.mc != nil {
+		_ = a.mc.Close()
+		a.mc = nil
+	}
+	a.panes = nil
+	if a.saidOld {
+		a.flash = flash{} // the warning about the old server
+	}
+	a.connectMux()
+	a.replacing, a.saidOld = false, false
+	if a.mc == nil {
+		a.say("lost connection to cockpit serve: " + a.muxErr)
+	} else {
+		a.muxErr = ""
+	}
+	a.rebuild()
 }

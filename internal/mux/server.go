@@ -42,6 +42,7 @@ type Server struct {
 	nextID  int
 	changed bool // the pane list changed since the last broadcast
 	lastUse time.Time
+	stop    func() // ends the process for OpShutdown; nil in tests
 }
 
 type pane struct {
@@ -91,6 +92,11 @@ func Serve() error {
 		return err
 	}
 	s := newServer()
+	s.stop = func() {
+		log.Print("shutting down: asked to")
+		_ = os.Remove(sock)
+		os.Exit(0)
+	}
 	go s.broadcast()
 	go s.exitWhenIdle(sock)
 	log.Printf("listening on %s", sock)
@@ -167,6 +173,14 @@ func (s *Server) handle(conn net.Conn) {
 			}
 		case OpClose:
 			s.close(m.ID)
+		case OpShutdown:
+			if s.running() > 0 {
+				c.send(Msg{Op: OpError, Err: "not shutting down: panes are running"})
+				continue
+			}
+			if s.stop != nil {
+				s.stop()
+			}
 		case OpSelect:
 			s.mu.Lock()
 			for d := range s.clients {
@@ -188,6 +202,7 @@ func (s *Server) attach(c *client) {
 		panes = append(panes, s.panes[id])
 	}
 	s.mu.Unlock()
+	c.send(Msg{Op: OpHello, Version: ProtocolVersion})
 	c.send(Msg{Op: OpPanes, Panes: list})
 	for _, p := range panes {
 		c.send(Msg{Op: OpScreen, Screen: p.screen()})
@@ -479,4 +494,21 @@ func paneEnv() []string {
 		out = append(out, kv)
 	}
 	return out
+}
+
+// running is how many panes have a program still running.
+func (s *Server) running() int {
+	s.mu.Lock()
+	panes := make([]*pane, 0, len(s.panes))
+	for _, p := range s.panes {
+		panes = append(panes, p)
+	}
+	s.mu.Unlock()
+	n := 0
+	for _, p := range panes {
+		if !p.exited() {
+			n++
+		}
+	}
+	return n
 }

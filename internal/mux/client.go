@@ -23,7 +23,17 @@ type Client struct {
 	mu       sync.Mutex
 	panes    []PaneInfo
 	screens  map[string]*Screen
+	version  int  // the server's ProtocolVersion; 0 for a server from before versions
+	attached bool // the first pane list arrived, so version is known
 	OnUpdate func(Msg)
+}
+
+// ServerVersion is the server's ProtocolVersion, and whether it is known yet: the server announces it
+// before the first pane list.
+func (c *Client) ServerVersion() (int, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.version, c.attached
 }
 
 // ErrNotRunning is returned by Connect when no server is listening.
@@ -102,7 +112,10 @@ func (c *Client) Run() error {
 		}
 		c.mu.Lock()
 		switch m.Op {
+		case OpHello:
+			c.version = m.Version
 		case OpPanes:
+			c.attached = true
 			c.panes = m.Panes
 			alive := map[string]bool{}
 			for _, p := range m.Panes {

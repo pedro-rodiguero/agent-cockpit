@@ -10,8 +10,14 @@ import (
 	"time"
 )
 
-// Operations. Dashboards send attach, spawn, input, paste, resize and close; the server sends panes,
-// screen, spawned and error. Anyone may send select, which the server passes on to every dashboard.
+// ProtocolVersion is the version of the messages below. The server announces it on attach, so a
+// dashboard can tell a server older than itself, which ignores requests it does not know. Servers from
+// before version 1 announce nothing.
+const ProtocolVersion = 1
+
+// Operations. Dashboards send attach, spawn, input, paste, resize, close and shutdown; the server sends
+// hello, panes, screen, spawned and error. Anyone may send select, which the server passes on to every
+// dashboard.
 const (
 	OpAttach = "attach" // subscribe to updates; the server answers with panes and every screen
 	OpSpawn  = "spawn"  // start Agent in Cwd with Args and extra Env, sized Cols×Rows
@@ -20,6 +26,11 @@ const (
 	OpResize = "resize" // resize pane ID to Cols×Rows
 	OpClose  = "close"  // stop pane ID's program and drop the pane
 	OpSelect = "select" // show session ID: passed on to every attached dashboard
+	// OpShutdown asks the server to exit, so a newer one can take its place. It refuses, with an error,
+	// while a pane's program is running.
+	OpShutdown = "shutdown"
+
+	OpHello = "hello" // first reply to attach: the server's Version
 
 	OpPanes   = "panes"   // the full pane list, sent whenever it changes
 	OpScreen  = "screen"  // one pane's visible screen, sent whenever it changes
@@ -55,18 +66,19 @@ type Screen struct {
 
 // Msg is every frame on the wire, in both directions. Op says which fields are set.
 type Msg struct {
-	Op     string     `json:"op"`
-	ID     string     `json:"id,omitempty"`
-	Agent  string     `json:"agent,omitempty"`
-	Cwd    string     `json:"cwd,omitempty"`
-	Args   []string   `json:"args,omitempty"`
-	Env    []string   `json:"env,omitempty"` // KEY=value pairs added to the agent's environment
-	Cols   int        `json:"cols,omitempty"`
-	Rows   int        `json:"rows,omitempty"`
-	Data   []byte     `json:"data,omitempty"`
-	Panes  []PaneInfo `json:"panes,omitempty"`
-	Screen *Screen    `json:"screen,omitempty"`
-	Err    string     `json:"err,omitempty"`
+	Op      string     `json:"op"`
+	ID      string     `json:"id,omitempty"`
+	Agent   string     `json:"agent,omitempty"`
+	Cwd     string     `json:"cwd,omitempty"`
+	Args    []string   `json:"args,omitempty"`
+	Env     []string   `json:"env,omitempty"` // KEY=value pairs added to the agent's environment
+	Cols    int        `json:"cols,omitempty"`
+	Rows    int        `json:"rows,omitempty"`
+	Data    []byte     `json:"data,omitempty"`
+	Panes   []PaneInfo `json:"panes,omitempty"`
+	Screen  *Screen    `json:"screen,omitempty"`
+	Err     string     `json:"err,omitempty"`
+	Version int        `json:"version,omitempty"`
 }
 
 // Dir is where the server keeps its socket and log.

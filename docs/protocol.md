@@ -30,6 +30,7 @@ Every message has an `op`; the other fields depend on it.
 | `paste` | `id`, `data` | paste text: wrapped in bracketed-paste markers only if the program enabled that mode |
 | `resize` | `id`, `cols`, `rows` | resize the pane; the program receives `SIGWINCH` |
 | `close` | `id` | `SIGHUP` the program (then `SIGKILL` after 3s) and drop the pane |
+| `shutdown` | | exit, so a newer server can take over; refused with `error` while a pane's program is running |
 | `select` | `id` | pass the request on to every attached dashboard, which selects session `id` (or the pane it runs in) once it has collected it. Any connection may send it without attaching: `cockpit select` does |
 
 `agent` is one of `claude`, `codex`, `agy`, `shell`. The program runs through the user's login shell
@@ -41,6 +42,7 @@ Code's session markers, are removed first.
 
 | op | fields | when |
 |----|--------|------|
+| `hello` | `version` | first reply to `attach`: the server's protocol version |
 | `panes` | `panes` | on attach and whenever the list or a pane's title, size or exit status changes |
 | `screen` | `screen` | on attach and whenever a pane's screen changes, at most about 30 times a second |
 | `spawned` | `id` | reply to `spawn` |
@@ -50,6 +52,14 @@ Code's session markers, are removed first.
 A `screen` carries the visible rows only. Each row is a string exactly `cols` cells wide with SGR
 escape sequences, colors already mapped to cockpit's palette, so the dashboard can paste it into a card
 as is. `cx`/`cy` is the cursor, and `cursor` says whether the program wants it shown.
+
+## Versions
+
+The protocol has a version, `ProtocolVersion` in `proto.go`, raised whenever a message is added. A server
+ignores requests it does not know, so a dashboard compares the server's `hello` with its own version:
+when the server is older, the dashboard sends `shutdown` as soon as no pane's program is running and
+connects again, which starts the newer server. Until then its footer says why. Servers from before
+version 1 send no `hello` and do not know `shutdown`; the footer says to restart them by hand.
 
 ## Flow control
 

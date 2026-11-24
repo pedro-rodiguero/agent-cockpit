@@ -84,6 +84,9 @@ func TestSelectReachesAttachedDashboards(t *testing.T) {
 	out := json.NewEncoder(dash)
 	go func() { _ = out.Encode(Msg{Op: OpAttach}) }()
 	var m Msg
+	if err := in.Decode(&m); err != nil || m.Op != OpHello || m.Version != ProtocolVersion {
+		t.Fatalf("attach: %+v %v, want hello first", m, err)
+	}
 	if err := in.Decode(&m); err != nil || m.Op != OpPanes {
 		t.Fatalf("attach: %+v %v", m, err)
 	}
@@ -98,6 +101,39 @@ func TestSelectReachesAttachedDashboards(t *testing.T) {
 	}
 	cli.Close()
 	dash.Close()
+}
+
+func TestShutdownWaitsForRunningPanes(t *testing.T) {
+	s := newServer()
+	stopped := make(chan struct{}, 1)
+	s.stop = func() { stopped <- struct{}{} }
+	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 20, Rows: 4, Args: []string{"/bin/sh", "-c", "sleep 30"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, end := net.Pipe()
+	go s.handle(end)
+	in := json.NewDecoder(conn)
+	go func() { _ = json.NewEncoder(conn).Encode(Msg{Op: OpShutdown}) }()
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var m Msg
+	if err := in.Decode(&m); err != nil || m.Op != OpError {
+		t.Fatalf("shutdown with a running pane: %+v %v, want an error", m, err)
+	}
+	select {
+	case <-stopped:
+		t.Fatal("stopped with a running pane")
+	default:
+	}
+
+	s.close(id)
+	go func() { _ = json.NewEncoder(conn).Encode(Msg{Op: OpShutdown}) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("did not stop with no pane running")
+	}
+	conn.Close()
 }
 
 func TestSocketPathStaysShort(t *testing.T) {

@@ -134,6 +134,7 @@ var looks = map[model.State]stateLook{
 	model.Asked:   {"?", "your turn", cAsked},
 	model.Stuck:   {"✕", "stuck?", cStuck},
 	model.Inbox:   {"✉", "inbox", cInbox},
+	model.Todo:    {"□", "to do", cSoft},
 	model.Busy:    {"●", "working", cBusy},
 	model.Idle:    {"○", "idle", cIdle},
 }

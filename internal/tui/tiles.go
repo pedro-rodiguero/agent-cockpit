@@ -25,8 +25,14 @@ func (t tile) state() model.State {
 	return model.Idle
 }
 
-// isItem reports whether the tile is an inbox item from an external source rather than an agent.
-func (t tile) isItem() bool { return t.pane == nil && t.sess != nil && t.sess.State == model.Inbox }
+// isItem reports whether the tile is an inbox item or a to-do task from an external source rather
+// than an agent.
+func (t tile) isItem() bool {
+	return t.pane == nil && t.sess != nil && (t.sess.State == model.Inbox || t.sess.State == model.Todo)
+}
+
+// isTask reports whether the tile is a to-do task.
+func (t tile) isTask() bool { return t.pane == nil && t.sess != nil && t.sess.State == model.Todo }
 
 // livePane reports whether the tile is a pane whose program is still running.
 func (t tile) livePane() bool { return t.pane != nil && !t.pane.Exited }
@@ -69,12 +75,13 @@ func (t tile) agent() string {
 const quietAfter = time.Hour
 
 // place is where a tile goes in the grid view: a card in the grid, or a row in one of the rail's
-// sections. The rail holds what is not happening now: items to read elsewhere, panes whose program
-// exited, and sessions nobody has touched for a while.
+// sections. The rail holds what is not happening now: to-do tasks, items to read elsewhere, panes whose
+// program exited, and sessions nobody has touched for a while.
 type place int
 
 const (
 	inGrid place = iota
+	inTodo
 	inInbox
 	inEnded
 	inQuiet
@@ -82,6 +89,8 @@ const (
 
 func (t tile) place(now time.Time) place {
 	switch {
+	case t.isTask():
+		return inTodo
 	case t.isItem():
 		return inInbox
 	case t.pane != nil && t.pane.Exited:
@@ -144,6 +153,17 @@ func railCount(tiles []tile, now time.Time) int {
 		n++
 	}
 	return n
+}
+
+// withoutTasks drops to-do tasks, for a grid too narrow for the rail: tasks are rows, never cards.
+func withoutTasks(tiles []tile) []tile {
+	kept := tiles[:0:0]
+	for _, t := range tiles {
+		if !t.isTask() {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // needingAttention keeps the tiles that need the person, plus the tile keep (the pane being typed into,

@@ -331,7 +331,7 @@ func (a *App) collectLoop(ctx context.Context) {
 func readChats(r *chat.Reader, sessions []model.Session) map[string]chat.Conversation {
 	chats := map[string]chat.Conversation{}
 	for _, s := range sessions {
-		if s.Log == "" || s.State == model.Inbox {
+		if s.Log == "" || s.State == model.Inbox || s.State == model.Todo {
 			continue
 		}
 		chats[s.ID] = r.Read(s.Agent, s.Log, chatLinesPerCard)
@@ -382,6 +382,7 @@ func (a *App) handle(ev event) {
 		a.alert(ev.msg)
 	case evResize:
 		a.w, a.h = a.scr.size()
+		a.rebuild() // whether tasks have a rail to go to depends on the width
 	case evQuit:
 		a.quit = true
 	}
@@ -449,6 +450,9 @@ func (a *App) rebuild() {
 			keep = a.sel
 		}
 		tiles = needingAttention(tiles, keep)
+	}
+	if a.view == gridView && a.w < minRailWindow {
+		tiles = withoutTasks(tiles)
 	}
 	a.tiles = tiles
 	a.rememberPaneSessions()

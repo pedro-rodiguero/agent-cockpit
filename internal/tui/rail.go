@@ -9,6 +9,10 @@ import (
 // The rail is a column on the right of the grid for what is not happening now. It is drawn on the
 // panel background, one section per place, each tile a two-row entry:
 //
+//	│ WORK                              2
+//	│ □ Ship the billing export     today
+//	│   BILL-12 · in progress
+//	│
 //	│ INBOX                             1
 //	│ ✉ payments                       3h
 //	│   review requested · Retry webhooks…
@@ -21,7 +25,16 @@ const (
 	railEntryRows = 2
 )
 
-var railSections = map[place]string{inInbox: "INBOX", inEnded: "ENDED", inQuiet: "IDLE 1h+"}
+var railSections = map[place]string{inTodo: "TO DO", inInbox: "INBOX", inEnded: "ENDED", inQuiet: "IDLE 1h+"}
+
+// railSection is the section a tile is listed under: its place, and for tasks the group they belong to.
+func railSection(t tile, now time.Time) string {
+	p := t.place(now)
+	if p == inTodo && t.sess.Group != "" {
+		return strings.ToUpper(t.sess.Group)
+	}
+	return railSections[p]
+}
 
 // railBody draws the rail's tiles, tiles[mainN:], into r. When they do not fit, the rows scroll so
 // the selected entry stays in view.
@@ -35,18 +48,18 @@ func (a *App) railBody(r rect, now time.Time) []string {
 	sel, selSpan := a.cur(), span{}
 	tiles := a.tiles[a.lay.mainN:]
 	for i, t := range tiles {
-		p := t.place(now)
-		if i == 0 || tiles[i-1].place(now) != p {
+		section := railSection(t, now)
+		if i == 0 || railSection(tiles[i-1], now) != section {
 			if i > 0 {
 				add(line("", cPanel))
 			}
 			n := 0
 			for _, u := range tiles[i:] {
-				if u.place(now) == p {
+				if railSection(u, now) == section {
 					n++
 				}
 			}
-			label, count := " "+railSections[p], fmt.Sprintf("%d ", n)
+			label, count := " "+section, fmt.Sprintf("%d ", n)
 			add(line(paint(cFaint, cPanel, label+strings.Repeat(" ", max(1, r.w-1-width(label)-width(count)))+count), cPanel))
 		}
 		idx := a.lay.mainN + i
@@ -92,6 +105,11 @@ func railEntry(t tile, w int, selected bool, now time.Time) []string {
 		glyph, glyphFg = "◧", cFaint
 		age = fmt.Sprintf("code %d", t.pane.ExitCode)
 		detail = t.pane.Agent + " · " + tilde(t.pane.Cwd)
+	case t.isTask():
+		var dueFg rgb
+		age, dueFg = due(t.sess.Due, now)
+		ageFg = dueFg
+		detail = t.sess.Detail
 	case t.isItem():
 		detail = firstOf(t.sess.Detail, "item")
 		if t.sess.Title != "" {
@@ -109,4 +127,26 @@ func railEntry(t tile, w int, selected bool, now time.Time) []string {
 	first := paint(cGold, bg, mark) + paint(glyphFg, bg, glyph+" ") + paint(nameFg, bg, fit(t.name(), nameW)) + paint(ageFg, bg, right)
 	second := paint(cFaint, bg, "   "+fit(detail, max(1, w-4)))
 	return []string{pad(first, w, bg), pad(second, w, bg)}
+}
+
+// due says when a task is due relative to today ("today", "tomorrow", "in 3d", "2d late"), in a color
+// that rises as the date comes closer. A task without a due date says nothing.
+func due(at, now time.Time) (string, rgb) {
+	if at.IsZero() {
+		return "", cFaint
+	}
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	ay, am, ad := at.In(now.Location()).Date()
+	days := int(time.Date(ay, am, ad, 0, 0, 0, 0, now.Location()).Sub(today).Hours() / 24)
+	switch {
+	case days < 0:
+		return fmt.Sprintf("%dd late", -days), cStuck
+	case days == 0:
+		return "today", cWaiting
+	case days == 1:
+		return "tomorrow", cSoft
+	default:
+		return fmt.Sprintf("in %dd", days), cFaint
+	}
 }

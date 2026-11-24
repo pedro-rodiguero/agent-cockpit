@@ -22,6 +22,8 @@ const (
 	minSubjectWidth                                     = 10
 )
 
+// ago formats how long ago t was as a duration that cannot be read as a clock time: "45s", "12m",
+// "2h05m", "19h", "3d". Minutes stop mattering after a few hours.
 func ago(t, now time.Time) string {
 	if t.IsZero() {
 		return "—"
@@ -34,8 +36,10 @@ func ago(t, now time.Time) string {
 		return fmt.Sprintf("%ds", int(d.Seconds()))
 	case d < time.Hour:
 		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 3*time.Hour:
+		return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
 	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh%02d", int(d.Hours()), int(d.Minutes())%60)
+		return fmt.Sprintf("%dh", int(d.Hours()))
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}

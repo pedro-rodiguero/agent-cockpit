@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWrapWideCharacters(t *testing.T) {
@@ -96,3 +97,25 @@ func TestCompleteDirMultibyte(t *testing.T) {
 }
 
 func isValidUTF8(s string) bool { return strings.ToValidUTF8(s, "�") == s }
+
+func TestAgo(t *testing.T) {
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		d    time.Duration
+		want string
+	}{
+		{-time.Second, "now"},
+		{45 * time.Second, "45s"},
+		{12 * time.Minute, "12m"},
+		{2*time.Hour + 5*time.Minute, "2h05m"},
+		{19*time.Hour + 9*time.Minute, "19h"},
+		{72 * time.Hour, "3d"},
+	} {
+		if got := ago(now.Add(-tc.d), now); got != tc.want {
+			t.Errorf("ago(%v) = %q, want %q", tc.d, got, tc.want)
+		}
+	}
+	if got := ago(time.Time{}, now); got != "—" {
+		t.Errorf("ago(zero) = %q", got)
+	}
+}

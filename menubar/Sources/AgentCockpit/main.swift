@@ -273,15 +273,19 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         ].compactMap { $0 }
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? candidates[0]
     }()
-    lazy var dashboard = DashboardWindow(cockpit: cockpit)
-    var notifyOn: Bool {
-        get { UserDefaults.standard.object(forKey: "notify") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "notify") }
-    }
+    let settings = CockpitSettings()
+    lazy var dashboard = DashboardWindow(cockpit: cockpit, settings: settings)
+    lazy var settingsWindow = SettingsWindow(settings: settings, cockpit: cockpit)
+    /// Pending restart of the dashboard after a change to settings it reads only at startup.
+    var restart: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ n: Notification) {
         menu.delegate = self
         item.menu = menu
+        NSApp.mainMenu = mainMenu()
+        NotificationCenter.default.addObserver(forName: CockpitSettings.changed, object: settings, queue: .main) { [weak self] n in
+            self?.settingsChanged(n.userInfo?["key"] as? String ?? "")
+        }
         render()
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -298,6 +302,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     }
 
     func poll() {
+        if settings.reload() { dashboard.apply() } // edited by hand
         guard !polling else { return }
         polling = true
         let binary = cockpit
@@ -317,7 +322,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     func apply(_ snapshot: Snapshot) {
         let now = Date()
         let current = sessionsCarryingOverFailedSources(snapshot, previous: previous)
-        if primed && notifyOn {
+        if primed && settings.notify {
             alerts(previous: previous, current: current, busySince: busySince, now: now).forEach(post)
         }
         busySince = trackBusy(current, busySince: busySince, now: now)
@@ -407,9 +412,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         panel.target = self
         menu.addItem(panel)
         let n = NSMenuItem(title: "Notifications", action: #selector(toggleNotify), keyEquivalent: "")
-        n.state = notifyOn ? .on : .off
+        n.state = settings.notify ? .on : .off
         n.target = self
         menu.addItem(n)
+        let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        prefs.target = self
+        menu.addItem(prefs)
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
@@ -478,9 +486,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         try? p.run()
     }
 
-    /// Opens the dashboard in a new Terminal window. The path travels as an argument to the script and
-    /// `quoted form of` shell-quotes it, so spaces and quotes in it are neither split nor interpreted.
     @objc func openDashboard() { dashboard.show() }
+
+    @objc func openSettings() { settingsWindow.show() }
 
     /// Opening the app again (from Finder, Spotlight or the Dock) shows the dashboard window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
@@ -488,6 +496,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         return true
     }
 
+    /// Opens the dashboard in a new Terminal window. The path travels as an argument to the script and
+    /// `quoted form of` shell-quotes it, so spaces and quotes in it are neither split nor interpreted.
     @objc func openPanel() {
         let script = """
         on run argv
@@ -503,7 +513,51 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         try? p.run()
     }
 
-    @objc func toggleNotify() { notifyOn.toggle() }
+    @objc func toggleNotify() { settings.notify.toggle() }
+
+    // MARK: settings
+
+    /// Applies a change made in the Settings window. Appearance applies at once; accounts, sources and the
+    /// stuck time are read when the dashboard starts, so it restarts, once typing has paused.
+    func settingsChanged(_ key: String) {
+        dashboard.apply()
+        guard ["accounts", "sources", "stuckAfter"].contains(key), dashboard.isOpen else { return }
+        restart?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.dashboard.restart() }
+        restart = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+    }
+
+    /// The menu bar shown while the dashboard window is open: settings, the edit commands the terminal
+    /// answers (copy, paste), and the window commands. There is no Quit: ⌘Q in the dashboard would also
+    /// end the menu bar app, which lives on after the window closes.
+    func mainMenu() -> NSMenu {
+        let main = NSMenu()
+        func submenu(_ title: String, _ items: [NSMenuItem]) {
+            let m = NSMenu(title: title)
+            items.forEach(m.addItem)
+            let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            holder.submenu = m
+            main.addItem(holder)
+        }
+        let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        prefs.target = self
+        submenu("Agent Cockpit", [
+            prefs,
+            .separator(),
+            NSMenuItem(title: "Hide Agent Cockpit", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
+        ])
+        submenu("Edit", [
+            NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
+            NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
+            NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
+        ])
+        submenu("Window", [
+            NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
+            NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
+        ])
+        return main
+    }
 }
 
 let app = NSApplication.shared

@@ -23,9 +23,10 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 
 | package | responsibility |
 |---------|----------------|
-| `cmd/cockpit` | command-line entry point: dashboard, `serve`, `panes`, `json`, `open` |
+| `cmd/cockpit` | command-line entry point: dashboard, `serve`, `panes`, `json`, `open`, `config` |
 | `internal/model` | `Session`, `State`, `Snapshot`: the types every other package shares |
 | `internal/source` | finding sessions: one `Source` per agent, external sources, and the `Collector` that merges them |
+| `internal/config` | the settings file (`config.json`), read again whenever it changes |
 | `internal/todo` | the to-do list: tasks in a JSON file, quick-add parsing, history |
 | `internal/chat` | turning a transcript into short chat lines for a card |
 | `internal/mux` | the pane server, its client, and the renderer that turns an emulator screen into themed ANSI rows |
@@ -33,10 +34,11 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 | `internal/peer` | sending a message into a running Claude Code session |
 | `internal/term` | Terminal.app and iTerm2 automation: focus a tab, set tab titles |
 | `internal/tailfile` | reading the end of an append-only log on a line boundary |
-| `menubar` | the Mac app: menu bar status, notifications, and the dashboard in a SwiftTerm window |
+| `menubar` | the Mac app: menu bar status, notifications, the dashboard in a SwiftTerm window, and the Settings window |
 
-`tui` uses `source`, `todo`, `chat`, `mux`, `peer` and `term`, and `source` uses `todo` for the tasks
-source; none of those use `tui`, and `model` uses nothing.
+`tui` uses `config`, `source`, `todo`, `chat`, `mux`, `peer` and `term`; `source` uses `config` and
+`todo`, for the tasks source; `config` uses `todo` for its settings type. None of those use `tui`, and
+`model` uses nothing.
 
 ## Collecting sessions
 

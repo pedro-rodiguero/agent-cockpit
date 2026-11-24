@@ -82,6 +82,7 @@ cockpit            # the dashboard
 cockpit panes      # panes held by the server (-screen prints their screens)
 cockpit json       # one snapshot as JSON
 cockpit open <id>  # focus a session's tab, or open an inbox item's link
+cockpit config     # the settings in effect and what was detected
 ```
 
 | key | action |
@@ -102,18 +103,34 @@ cockpit open <id>  # focus a session's tab, or open an inbox item's link
 
 ## Configuration
 
+Settings live in `config.json` next to the to-do list (`~/Library/Application Support/agent-cockpit/`
+on macOS, `~/.config/agent-cockpit/` on Linux). The app edits it in **Settings** (`⌘,`); by hand, every
+field is optional. `cockpit config` prints the settings in effect and what cockpit found.
+
+```json
+{
+  "theme": "system",
+  "quietAfter": "2h",
+  "accounts": { "claude": ["~/.claude", "~/.claude-work"] },
+  "sources": { "off": ["agy"] },
+  "todo": { "defaultGroup": "Personal", "fold": { "Side project": "Personal" } },
+  "app": { "opacity": 0.85, "blur": true, "fontSize": 14 }
+}
+```
+
+[docs/configuration.md](docs/configuration.md) describes every field. Theme, opacity and the to-do
+settings apply within seconds; accounts and sources when the dashboard starts (the app restarts it).
+These variables win over the file:
+
 | variable | default | |
 |----------|---------|---|
 | `COCKPIT_STUCK_AFTER` | `10m` | how long a working session may stay silent before it counts as stuck |
 | `COCKPIT_CLAUDE_DIRS` | `~/.claude` and every `~/.claude-*` | Claude Code config dirs, colon-separated, default profile first |
-| `COCKPIT_SOURCES` | all | comma-separated sources to enable (`claude,codex,agy,<external>`) |
+| `COCKPIT_SOURCES` | all but those turned off | comma-separated sources to enable (`claude,codex,agy,tasks,<external>`) |
 | `COCKPIT_COLOR` | detected | `truecolor` or `256`; cockpit uses 24-bit color only where the terminal announces it (Terminal.app before macOS 26 does not) |
 
-The to-do list is `~/Library/Application Support/agent-cockpit/todo.json`. Its `settings` set the group
-of a task typed without one (`defaultGroup`), and can show one group inside another, marked with its
-name (`"fold": {"Side project": "Personal"}`), optionally only while a host answers
-(`"foldWhenReachable": "10.0.0.5:443"`, for a list that should look different at the office). Completed
-tasks move to `todo-done.jsonl` after a week.
+The to-do list itself is `todo.json` in the same folder. Completed tasks move to `todo-done.jsonl`
+after a week.
 
 A Claude profile other than the default one can keep a long-lived OAuth token (from
 `claude setup-token`) in `<profile dir>/token`; panes started for that profile use it.

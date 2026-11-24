@@ -25,6 +25,9 @@ cockpit-todo-server serve                   # listen on 127.0.0.1:8740 behind a 
 | `TODO_ENC_KEY` | required for 2FA | 32 bytes, hex or base64 (`openssl rand -hex 32`): encrypts the 2FA secret. Back it up with the data |
 | `TODO_TRUST_PROXY` | `none` | `caddy` when Caddy on the same machine forwards to it: the client IP is then the last `X-Forwarded-For` hop, and only for connections from loopback |
 
+`set-password` and `reset-2fa` refuse to run while the server answers on `TODO_LISTEN`: it keeps the
+account in memory and would undo the change. Stop it, run them, start it again.
+
 There is no e-mail: the account is created, and its password reset, with `set-password` on the server.
 Resetting the password ends every session and is written to the audit log. Whoever can run it already
 controls the server.

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -82,10 +83,16 @@ func config() (todoserver.Config, error) {
 	}, nil
 }
 
+// withServer opens the data for a change from the command line. The running server keeps the account in
+// memory and would overwrite the change, so it must be stopped first.
 func withServer(fn func(*todoserver.Server) error) error {
 	cfg, err := config()
 	if err != nil {
 		return err
+	}
+	if conn, err := net.DialTimeout("tcp", envOr("TODO_LISTEN", "127.0.0.1:8740"), 300*time.Millisecond); err == nil {
+		conn.Close()
+		return errors.New("the server is running and would undo this change: stop it first (systemctl stop cockpit-todo)")
 	}
 	s, err := todoserver.New(cfg)
 	if err != nil {

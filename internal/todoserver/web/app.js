@@ -320,6 +320,7 @@ async function call(method, path, body, { inputCheck = false } = {}) {
     if (isUnreachable(e)) markUnreachable(e);
     else markReachable();
     if (e instanceof ApiError && e.status === 401 && !inputCheck) signedOut('Your session ended. Sign in again.');
+    if (e instanceof ApiError && e.status === 423) signedOut(e.message);
     throw e;
   }
 }
@@ -783,22 +784,26 @@ function lightDismiss(dialog) {
   });
 }
 
-// confirmSheet asks before something that cannot be undone. action runs on confirm; when it throws,
-// its message shows in the sheet and the sheet stays open.
+// confirmSheet asks before something that cannot be undone, or for the password before a sensitive
+// change. action(password, name) runs on confirm; when it throws, its message shows in the sheet and
+// the sheet stays open. name, when given, adds an editable name field holding it.
 let confirmState = null;
 
-function confirmSheet({ title, text, ok, password = false, action }) {
+function confirmSheet({ title, text, ok, password = false, name = null, tone = 'danger', action }) {
   const sheet = $('confirm-sheet');
   const form = $('form-confirm');
   $('confirm-title').textContent = title;
   $('confirm-text').textContent = text || '';
   $('confirm-text').hidden = !text;
   $('confirm-ok').textContent = ok;
+  $('confirm-ok').className = tone === 'primary' ? 'btn btn-primary' : 'btn btn-danger';
   $('confirm-password-field').hidden = !password;
+  $('confirm-name-field').hidden = name === null;
+  form.elements.name.value = name || '';
   form.elements.password.value = '';
   formError(form, '');
   return new Promise((resolve) => {
-    confirmState = { resolve, action, password, done: false };
+    confirmState = { resolve, action, password, named: name !== null, done: false };
     sheet.showModal();
     if (password) form.elements.password.focus();
     else $('confirm-cancel').focus();
@@ -813,6 +818,11 @@ function wireConfirm() {
     const st = confirmState;
     if (!st) return;
     const pw = form.elements.password.value;
+    const name = form.elements.name.value.trim();
+    if (st.named && !name) {
+      formError(form, 'Give it a name you will recognize.');
+      return;
+    }
     if (st.password && !pw) {
       formError(form, 'Enter your password.');
       return;
@@ -820,7 +830,7 @@ function wireConfirm() {
     const button = $('confirm-ok');
     busy(button, true);
     try {
-      await st.action(pw);
+      await st.action(pw, name);
       st.done = true;
       sheet.close();
     } catch (err) {
@@ -837,6 +847,151 @@ function wireConfirm() {
     if (st) st.resolve(st.done);
   });
   lightDismiss(sheet);
+}
+
+// ---------- passkeys ----------
+// The server sends binary WebAuthn fields as base64url and wants them back the same way, unpadded.
+
+function b64urlEncode(data) {
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64urlDecode(s) {
+  const b64 = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+const decodeCreds = (list) => (Array.isArray(list) ? list.map((c) => ({ ...c, id: b64urlDecode(c.id) })) : undefined);
+
+function getOptions(pk) {
+  const o = { ...pk, challenge: b64urlDecode(pk.challenge) };
+  if (pk.allowCredentials) o.allowCredentials = decodeCreds(pk.allowCredentials);
+  return o;
+}
+
+function createOptions(pk) {
+  const o = { ...pk, challenge: b64urlDecode(pk.challenge), user: { ...pk.user, id: b64urlDecode(pk.user.id) } };
+  if (pk.excludeCredentials) o.excludeCredentials = decodeCreds(pk.excludeCredentials);
+  return o;
+}
+
+const passkeysSupported = () => typeof window.PublicKeyCredential === 'function' && Boolean(navigator.credentials);
+const isApple = () => /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const isCancel = (e) => e && (e.name === 'NotAllowedError' || e.name === 'AbortError');
+
+function webauthnMessage(e) {
+  if (e && e.name === 'InvalidStateError') return 'This device already has a passkey for this list.';
+  if (e && e.name === 'SecurityError') return 'Passkeys need the app on its own HTTPS address.';
+  if (e && e.name === 'NotSupportedError') return 'This device cannot make a passkey.';
+  return (e && e.message) || 'The passkey did not work.';
+}
+
+function passkeyDeviceName() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/Macintosh|Mac OS X/.test(ua)) return 'Mac';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Linux/.test(ua)) return 'Linux';
+  return 'This device';
+}
+
+async function finishPasskeySignIn(cred) {
+  const r = cred.response;
+  const res = await api('POST', '/api/login/passkey', {
+    id: cred.id,
+    clientDataJSON: b64urlEncode(r.clientDataJSON),
+    authenticatorData: b64urlEncode(r.authenticatorData),
+    signature: b64urlEncode(r.signature),
+    userHandle: r.userHandle ? b64urlEncode(r.userHandle) : '',
+  });
+  if (!res || res.next !== 'done') throw new Error('Unexpected answer from the server.');
+  await afterSignIn(res.csrf);
+}
+
+function passkeyError(message) {
+  const el = $('passkey-error');
+  el.textContent = message || '';
+  el.hidden = !message;
+}
+
+// Conditional UI: while the sign-in screen is up, a background request lets Safari offer the passkey
+// in the password field's suggestions. Its challenge lasts 5 minutes, so it is renewed before that.
+let conditional = null;
+let conditionalTimer = 0;
+let conditionalOK = null;
+
+function stopConditional() {
+  clearTimeout(conditionalTimer);
+  if (conditional) conditional.abort();
+  conditional = null;
+}
+
+async function startConditional() {
+  stopConditional();
+  if (!passkeysSupported() || current !== 'signin' || auth === 'in') return;
+  if (conditionalOK === null) {
+    try {
+      conditionalOK = Boolean(await PublicKeyCredential.isConditionalMediationAvailable?.());
+    } catch {
+      conditionalOK = false;
+    }
+  }
+  if (!conditionalOK || current !== 'signin' || auth === 'in') return;
+  const ctl = new AbortController();
+  conditional = ctl;
+  conditionalTimer = setTimeout(startConditional, 4 * 60_000);
+  let cred;
+  try {
+    const opts = await api('POST', '/api/login/passkey/options', {});
+    if (ctl.signal.aborted) return;
+    cred = await navigator.credentials.get({ publicKey: getOptions(opts.publicKey), mediation: 'conditional', signal: ctl.signal });
+  } catch {
+    return;
+  }
+  if (ctl.signal.aborted || !cred) return;
+  stopConditional();
+  passkeyError('');
+  try {
+    await finishPasskeySignIn(cred);
+  } catch (e) {
+    passkeyError(e.message);
+  }
+}
+
+async function passkeySignIn() {
+  stopConditional();
+  const button = $('passkey-signin');
+  busy(button, true);
+  passkeyError('');
+  formError($('form-password'), '');
+  try {
+    const opts = await api('POST', '/api/login/passkey/options', {});
+    const cred = await navigator.credentials.get({ publicKey: getOptions(opts.publicKey), mediation: 'optional' });
+    if (cred) await finishPasskeySignIn(cred);
+  } catch (e) {
+    if (!isCancel(e)) passkeyError(e instanceof ApiError || e instanceof NetworkError ? e.message : webauthnMessage(e));
+  } finally {
+    busy(button, false);
+    if (auth !== 'in') startConditional();
+  }
+}
+
+function setupPasskeySignIn() {
+  if (!passkeysSupported()) return;
+  $('passkey-block').hidden = false;
+  $('passkey-signin').textContent = isApple() ? 'Sign in with Face ID' : 'Sign in with a passkey';
+  $('form-password').querySelector('button[type="submit"]').className = 'btn btn-secondary btn-block';
+  $('signin-username').setAttribute('autocomplete', 'username webauthn');
+  $('signin-password').setAttribute('autocomplete', 'current-password webauthn');
+  $('passkey-signin').addEventListener('click', passkeySignIn);
 }
 
 // ---------- signing in and out ----------
@@ -856,7 +1011,10 @@ function showSignIn(message) {
   $('signin-notice').textContent = notes.join(' ');
   $('signin-notice').hidden = notes.length === 0;
   for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  passkeyError('');
+  $('passkey-block').hidden = !passkeysSupported();
   show('signin', 'signin-title');
+  startConditional();
 }
 
 function signedOut(message) {
@@ -875,6 +1033,7 @@ function enterList() {
 }
 
 async function afterSignIn(token) {
+  stopConditional();
   csrf = token;
   auth = 'in';
   await refreshMe();
@@ -912,6 +1071,8 @@ function wireSignIn() {
       formError(pwForm, 'Enter your password.');
       return;
     }
+    stopConditional();
+    passkeyError('');
     const button = pwForm.querySelector('button[type="submit"]');
     busy(button, true);
     formError(pwForm, '');
@@ -920,6 +1081,7 @@ function wireSignIn() {
       pwForm.elements.password.value = '';
       if (r && r.next === 'mfa') {
         pwForm.hidden = true;
+        $('passkey-block').hidden = true;
         mfaForm.hidden = false;
         $('signin-notice').hidden = true;
         setRecovery(false);
@@ -933,6 +1095,7 @@ function wireSignIn() {
     } catch (err) {
       formError(pwForm, err.message);
       pwForm.elements.password.select();
+      startConditional();
     } finally {
       busy(button, false);
     }
@@ -984,9 +1147,12 @@ function wireSignIn() {
   $('mfa-back').addEventListener('click', () => {
     mfaForm.hidden = true;
     pwForm.hidden = false;
+    $('passkey-block').hidden = !passkeysSupported();
     formError(pwForm, '');
     pwForm.elements.password.focus();
+    startConditional();
   });
+  setupPasskeySignIn();
   $('retry-connect').addEventListener('click', async () => {
     const button = $('retry-connect');
     busy(button, true);
@@ -1036,6 +1202,7 @@ function openSettings() {
   window.scrollTo(0, 0);
   renderMfa();
   refreshMe().then(renderMfa);
+  loadPasskeys();
   loadSessions();
   loadDevices();
   loadAudit();
@@ -1211,6 +1378,84 @@ function loadAudit() {
   }, loadAudit);
 }
 
+function loadPasskeys() {
+  const panel = $('passkeys-panel');
+  loadInto(panel, '/api/passkeys', (data) => {
+    const keys = Array.isArray(data.passkeys) ? data.passkeys : [];
+    if (!keys.length) {
+      panel.replaceChildren(panelNote('No passkeys yet.'));
+      return;
+    }
+    panel.replaceChildren(...keys.map((k) => h('div', { class: 'srow' },
+      h('div', { class: 'srow-main' },
+        h('span', { class: 'srow-title', text: k.name || 'Passkey' }),
+        h('span', { class: 'srow-sub', text: `added ${fmtDateTime(k.created)} · ${k.lastUsed ? `last used ${ago(k.lastUsed)}` : 'never used'}` })),
+      h('button', {
+        type: 'button',
+        class: 'btn btn-danger-quiet btn-small',
+        text: 'Remove',
+        'aria-label': `Remove passkey ${k.name || ''}`.trim(),
+        on: {
+          click: () => confirmSheet({
+            title: `Remove ${k.name || 'this passkey'}?`,
+            text: 'It stops signing in to this list at once. The passkey itself stays in Passwords until you delete it there.',
+            ok: 'Remove',
+            action: async () => {
+              await call('DELETE', `/api/passkeys/${encodeURIComponent(k.id)}`);
+              toast('Passkey removed.');
+              loadPasskeys();
+              loadAudit();
+            },
+          }),
+        },
+      }))));
+  }, loadPasskeys);
+}
+
+async function addPasskey(password, name) {
+  const opts = await call('POST', '/api/passkeys/options', { password });
+  let cred;
+  try {
+    cred = await navigator.credentials.create({ publicKey: createOptions(opts.publicKey) });
+  } catch (e) {
+    if (isCancel(e)) throw new Error('Cancelled. Try again when you are ready.');
+    throw new Error(webauthnMessage(e));
+  }
+  if (!cred) throw new Error('Cancelled. Try again when you are ready.');
+  const r = cred.response;
+  const transports = typeof r.getTransports === 'function' ? r.getTransports() : [];
+  await call('POST', '/api/passkeys', {
+    name,
+    id: cred.id,
+    clientDataJSON: b64urlEncode(r.clientDataJSON),
+    attestationObject: b64urlEncode(r.attestationObject),
+    transports,
+  });
+  toast(isApple() ? 'Face ID added. Use it the next time you sign in.' : 'Passkey added. Use it the next time you sign in.');
+  loadPasskeys();
+  loadAudit();
+}
+
+function setupPasskeySettings() {
+  const button = $('add-passkey');
+  if (!passkeysSupported()) {
+    button.hidden = true;
+    $('passkey-add-hint').textContent = 'This browser cannot make passkeys. Open the list in Safari on your iPhone to add Face ID.';
+    return;
+  }
+  const label = isApple() ? 'Add Face ID' : 'Add a passkey';
+  button.textContent = label;
+  button.addEventListener('click', () => confirmSheet({
+    title: label,
+    text: 'Enter your password to add a passkey for this device.',
+    ok: 'Continue',
+    tone: 'primary',
+    password: true,
+    name: passkeyDeviceName(),
+    action: addPasskey,
+  }));
+}
+
 function groupSecret(secret) {
   return (String(secret).replace(/\s+/g, '').match(/.{1,4}/g) || []).join(' ');
 }
@@ -1332,6 +1577,7 @@ function renderMfa() {
 }
 
 function wireSettings() {
+  setupPasskeySettings();
   $('open-settings').addEventListener('click', openSettings);
   $('close-settings').addEventListener('click', closeSettings);
   $('sign-out').addEventListener('click', signOut);

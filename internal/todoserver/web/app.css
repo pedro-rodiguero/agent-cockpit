@@ -167,6 +167,23 @@ button:disabled { cursor: default; }
 
 .row-between { display: flex; justify-content: space-between; gap: 12px; }
 
+.passkey-block { margin-top: 8px; }
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.or-divider::before, .or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.passkey-block + .stack { margin-top: 0; }
+
 /* ---------- fields and buttons ---------- */
 
 .field { display: flex; flex-direction: column; gap: 6px; }

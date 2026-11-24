@@ -85,6 +85,7 @@ cockpit json        # one snapshot as JSON
 cockpit open <id>   # focus a session's tab, or open an inbox item's link
 cockpit config      # the settings in effect and what was detected
 cockpit select <id> # select a session in the open dashboards
+cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, `reopen`
 ```
 
 | key | action |
@@ -131,7 +132,8 @@ These variables win over the file:
 | `COCKPIT_SOURCES` | all but those turned off | comma-separated sources to enable (`claude,codex,agy,tasks,<external>`) |
 | `COCKPIT_COLOR` | detected | `truecolor` or `256`; cockpit uses 24-bit color only where the terminal announces it (Terminal.app before macOS 26 does not) |
 
-The to-do list itself is `todo.json` in the same folder. Completed tasks move to `todo-done.jsonl`
+The to-do list itself is `todo.json` in the same folder. `cockpit todo` reads and changes it from the
+command line (`-json` for scripts), which is how a chat bot or a phone shortcut can add to it. Completed tasks move to `todo-done.jsonl`
 after a week.
 
 A Claude profile other than the default one can keep a long-lived OAuth token (from

@@ -34,6 +34,7 @@ Usage:
   cockpit open <id|tty>    bring a session's terminal tab to the front, or open an item's link
   cockpit config           print the settings in effect, what was detected, and the settings file's path
   cockpit select <id>      select a session in the dashboards that are open
+  cockpit todo             the to-do list: list, add, done, reopen (cockpit todo help)
   cockpit version          print the version
 
 Dashboard flags:
@@ -73,6 +74,8 @@ func main() {
 		err = runConfig()
 	case "select":
 		err = runSelect(args)
+	case "todo":
+		err = runTodo(args)
 	case "version", "--version":
 		fmt.Println(version)
 	case "help", "-h", "--help":

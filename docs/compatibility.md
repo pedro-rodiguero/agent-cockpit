@@ -3,7 +3,7 @@
 cockpit reads files and sockets that belong to other tools. Most of them are internal to those tools,
 not documented interfaces, so a new release can change them. This page lists exactly what cockpit relies
 on, so a breakage can be traced quickly. Last checked with Claude Code 2.1.330, Codex CLI 0.167.1 and
-Antigravity CLI 1.5.10, on macOS 15.
+Antigravity CLI 1.5.10, on macOS 15. Linux is built and tested in CI.
 
 ## Claude Code
 
@@ -39,8 +39,10 @@ the agents in its panes would never register.
 agy stores conversations in SQLite with protobuf payloads, so cockpit shows no chat for it and cannot
 tell when it is waiting for input.
 
-## macOS
+## Operating system
 
-- `ps` and `lsof` for processes, terminals, working directories and open files.
+- `ps` for processes and their terminals, on both systems.
+- macOS: `lsof` for working directories and open files.
+- Linux: `/proc/<pid>/cwd` and `/proc/<pid>/fd` for the same, and `xdg-open` for links.
 - AppleScript against Terminal.app (`tty`, `selected`, `custom title` of tabs) and iTerm2 (`tty`,
   `name` of sessions).

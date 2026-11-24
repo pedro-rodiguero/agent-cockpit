@@ -4,7 +4,7 @@
 #
 #   PREFIX     where the cockpit binary goes (default ~/.local/bin)
 #   APP_DIR    where Agent Cockpit.app goes (default ~/Applications)
-#   NO_MENUBAR=1 skips the menu bar app and the LaunchAgent
+#   NO_MENUBAR=1 skips the menu bar app and the LaunchAgent (always skipped outside macOS)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,7 +18,7 @@ echo "→ cockpit $VERSION"
 mkdir -p "$PREFIX"
 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$PREFIX/cockpit" ./cmd/cockpit
 
-if [[ "${NO_MENUBAR:-}" == 1 ]]; then
+if [[ "${NO_MENUBAR:-}" == 1 || "$(uname -s)" != Darwin ]]; then
 	echo "✓ installed $PREFIX/cockpit"
 	exit 0
 fi

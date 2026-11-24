@@ -68,9 +68,12 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 
 ## Requirements
 
-- macOS 13 or later (tab focus and titles use AppleScript; the menu bar app is AppKit)
-- Go 1.26 to build, and the Xcode command line tools (Swift 6.1 or later) for the app, whose terminal
-  view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+- macOS 13 or later, or Linux
+- Go 1.26 to build; on macOS, the Xcode command line tools (Swift 6.1 or later) for the app, whose
+  terminal view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+
+On Linux everything runs in any terminal except what needs macOS: going to a session's terminal tab
+(`o`), tab titles, and the app. Those use AppleScript and AppKit.
 - Any of: [Claude Code](https://docs.claude.com/en/docs/claude-code), Codex CLI, Antigravity CLI
 
 ## Install

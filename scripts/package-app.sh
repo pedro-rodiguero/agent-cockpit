@@ -41,6 +41,6 @@ cat >"$APP/Contents/Info.plist" <<PLIST
 PLIST
 codesign --force --sign - "$APP/Contents/MacOS/cockpit"
 codesign --force --sign - "$APP"
-lipo -archs "$APP/Contents/MacOS/AgentCockpit" "$APP/Contents/MacOS/cockpit"
+for f in AgentCockpit cockpit; do echo "$f: $(lipo -archs "$APP/Contents/MacOS/$f")"; done
 ditto -c -k --keepParent "$APP" "$OUT/Agent-Cockpit-$VERSION-macos.zip"
 echo "$OUT/Agent-Cockpit-$VERSION-macos.zip"

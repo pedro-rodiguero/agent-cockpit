@@ -21,7 +21,7 @@ const (
 	User      Kind = iota // the person (or a peer session speaking for someone)
 	Assistant             // the agent's prose
 	Tool                  // a tool call, summarized as "<tool> <main argument>"
-	Note                  // an event in the conversation: interrupted, compacted
+	Note                  // an event in the conversation: an interrupted turn
 )
 
 // Line is one displayable line of a conversation. Text is a single paragraph without newlines.
@@ -49,6 +49,23 @@ type Info struct {
 type Conversation struct {
 	Lines []Line
 	Info  Info
+}
+
+// Question is the agent's last paragraph when the conversation ends with it asking the person something,
+// and "" otherwise. A turn that ends on a question is waiting for the person as much as a permission
+// prompt is, even though the agent itself reports it as finished.
+func (c Conversation) Question() string {
+	if len(c.Lines) == 0 {
+		return ""
+	}
+	last := c.Lines[len(c.Lines)-1]
+	if last.Kind != Assistant {
+		return ""
+	}
+	if !strings.HasSuffix(strings.TrimRight(last.Text, " *_`)\"'»”"), "?") {
+		return ""
+	}
+	return last.Text
 }
 
 // Reader parses session logs and caches the result per file until the file changes.
@@ -266,8 +283,7 @@ func parseClaude(b []byte) Conversation {
 				continue
 			}
 			if e.CompactSummary {
-				out = append(out, Line{Note, "conversation compacted"})
-				continue
+				continue // the summary Claude Code wrote of the earlier conversation, not a message
 			}
 			if e.IsMeta {
 				continue

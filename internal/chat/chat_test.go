@@ -40,7 +40,6 @@ tool: Edit /srv/app/limits.ts
 tool: github.create_pr Rate limit
 note: interrupted
 user: [reviewer] looks good
-note: conversation compacted
 `
 	if got := render(parseClaude([]byte(log)).Lines); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
@@ -165,5 +164,25 @@ func TestProbe(t *testing.T) {
 	var r Reader
 	for _, l := range r.Read(agent, path, 14).Lines {
 		t.Logf("%d %.110s", l.Kind, l.Text)
+	}
+}
+
+func TestQuestion(t *testing.T) {
+	conv := func(lines ...Line) Conversation { return Conversation{Lines: lines} }
+	for _, tc := range []struct {
+		conv Conversation
+		want string
+	}{
+		{conv(), ""},
+		{conv(Line{User, "fix it"}, Line{Assistant, "Fixed. Should I also update the docs?"}), "Fixed. Should I also update the docs?"},
+		{conv(Line{Assistant, "Should I start with the first four?**"}), "Should I start with the first four?**"},
+		{conv(Line{Assistant, "Want me to push? (it is not merged)"}), ""},
+		{conv(Line{Assistant, "Is it the cache?"}, Line{Assistant, "It was the cache."}), ""},
+		{conv(Line{Assistant, "Should I run it?"}, Line{Tool, "Bash npm test"}), ""},
+		{conv(Line{Assistant, "Should I run it?"}, Line{User, "yes"}), ""},
+	} {
+		if got := tc.conv.Question(); got != tc.want {
+			t.Errorf("Question(%v) = %q, want %q", tc.conv.Lines, got, tc.want)
+		}
 	}
 }

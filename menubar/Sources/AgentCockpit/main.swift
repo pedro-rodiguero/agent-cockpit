@@ -290,6 +290,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         let timer = Timer(timeInterval: Tuning.pollInterval, repeats: true) { [weak self] _ in self?.poll() }
         RunLoop.main.add(timer, forMode: .common) // keep ticking while the menu is open
         self.timer = timer
+        // The LaunchAgent starts the app at login with --background; opened any other way (Spotlight,
+        // Finder, the Dock) it was asked for, so it shows the dashboard.
+        if !CommandLine.arguments.contains("--background") {
+            dashboard.show()
+        }
     }
 
     func poll() {

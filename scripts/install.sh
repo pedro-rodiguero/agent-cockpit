@@ -24,7 +24,7 @@ if [[ "${NO_MENUBAR:-}" == 1 ]]; then
 fi
 
 echo "→ Agent Cockpit.app"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cat >"$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -33,6 +33,7 @@ cat >"$APP/Contents/Info.plist" <<EOF
   <key>CFBundleName</key><string>Agent Cockpit</string>
   <key>CFBundleExecutable</key><string>AgentCockpit</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleShortVersionString</key><string>${VERSION#v}</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
@@ -43,6 +44,7 @@ cat >"$APP/Contents/Info.plist" <<EOF
 EOF
 swift build -c release --package-path menubar
 cp menubar/.build/release/AgentCockpit "$APP/Contents/MacOS/AgentCockpit"
+cp menubar/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Ad-hoc signature: enough for notifications and for macOS to remember permissions between builds.
 codesign --force --sign - "$APP" >/dev/null
 

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Agent Cockpit app icon: an attitude indicator in the dashboard's palette. -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2318"/><stop offset="1" stop-color="#120f0a"/>
+    </linearGradient>
+    <radialGradient id="sky" cx=".5" cy=".3" r=".8">
+      <stop offset="0" stop-color="#3a3122"/><stop offset="1" stop-color="#1a1610"/>
+    </radialGradient>
+    <clipPath id="dial"><circle cx="512" cy="512" r="300"/></clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#ground)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#4a3e2a" stroke-width="3"/>
+  <g transform="translate(512 512) scale(0.873) translate(-512 -512)">
+    <circle cx="512" cy="512" r="330" fill="#0d0b08" stroke="#5a4c34" stroke-width="10"/>
+    <g clip-path="url(#dial)">
+      <g transform="rotate(-8 512 512)">
+        <rect x="150" y="150" width="724" height="380" fill="url(#sky)"/>
+        <rect x="150" y="530" width="724" height="360" fill="#6b4320"/>
+        <g fill="#8a5a2a">
+          <rect x="200" y="560" width="40" height="22"/><rect x="250" y="560" width="40" height="22"/><rect x="300" y="560" width="40" height="22"/><rect x="350" y="560" width="40" height="22"/><rect x="400" y="560" width="40" height="22"/><rect x="450" y="560" width="40" height="22"/><rect x="500" y="560" width="40" height="22"/><rect x="550" y="560" width="40" height="22"/><rect x="600" y="560" width="40" height="22"/><rect x="650" y="560" width="40" height="22"/><rect x="700" y="560" width="40" height="22"/><rect x="750" y="560" width="40" height="22"/>
+        </g>
+        <rect x="150" y="522" width="724" height="16" fill="#dcb15a"/>
+        <g fill="#8c7f66">
+          <rect x="452" y="420" width="120" height="10"/><rect x="472" y="350" width="80" height="10"/>
+          <rect x="452" y="640" width="120" height="10"/>
+        </g>
+      </g>
+    </g>
+    <g fill="#c08a2e">
+      <rect x="300" y="504" width="150" height="20" rx="10"/><rect x="574" y="504" width="150" height="20" rx="10"/>
+      <polygon points="512,486 540,514 512,542 484,514"/>
+    </g>
+    <polygon points="512,168 530,200 494,200" fill="#7faeb0"/>
+  </g>
+</svg>

@@ -13,6 +13,9 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
     private var window: NSWindow?
     private var terminal: LocalProcessTerminalView?
     private var blur: NSVisualEffectView?
+    /// The strip behind the title bar, tinted like the terminal's background so a translucent window
+    /// reads as one surface.
+    private var titleTint: NSView?
     private var appearanceObservation: NSKeyValueObservation?
 
     init(cockpit: String, settings: CockpitSettings) {
@@ -44,7 +47,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         old.terminate()
         let t = makeTerminal(frame: old.frame)
         old.removeFromSuperview()
-        w.contentView?.addSubview(t)
+        place(t, in: w)
         terminal = t
         apply()
         start(t)
@@ -53,7 +56,9 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
 
     private func open(select session: String?) {
         let frame = NSRect(x: 0, y: 0, width: 1440, height: 880)
-        let w = NSWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        // Full-size content: the blur runs under the title bar too, so a translucent window has no bare
+        // strip of desktop at the top.
+        let w = NSWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
         w.title = "Agent Cockpit"
         w.isReleasedWhenClosed = false
@@ -70,9 +75,22 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         effect.material = .underWindowBackground
         effect.state = .active
         container.addSubview(effect)
-        let t = makeTerminal(frame: frame)
-        container.addSubview(t)
+        let tint = NSView()
+        tint.wantsLayer = true
+        tint.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(tint)
         w.contentView = container
+        if let guide = w.contentLayoutGuide as? NSLayoutGuide {
+            NSLayoutConstraint.activate([
+                tint.topAnchor.constraint(equalTo: container.topAnchor),
+                tint.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                tint.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                tint.bottomAnchor.constraint(equalTo: guide.topAnchor),
+            ])
+        }
+        let t = makeTerminal(frame: frame)
+        place(t, in: w)
+        titleTint = tint
 
         window = w
         terminal = t
@@ -83,6 +101,19 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         }
         start(t, select: session)
         w.makeFirstResponder(t)
+    }
+
+    /// Puts the terminal in the window below the title bar.
+    private func place(_ t: LocalProcessTerminalView, in w: NSWindow) {
+        guard let container = w.contentView, let guide = w.contentLayoutGuide as? NSLayoutGuide else { return }
+        t.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(t)
+        NSLayoutConstraint.activate([
+            t.topAnchor.constraint(equalTo: guide.topAnchor),
+            t.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            t.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            t.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
     }
 
     private func makeTerminal(frame: NSRect) -> LocalProcessTerminalView {
@@ -113,6 +144,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         w.isOpaque = opacity >= 1
         w.backgroundColor = opacity >= 1 ? theme.background : .clear
         blur?.isHidden = opacity >= 1 || !settings.blur
+        titleTint?.layer?.backgroundColor = theme.background.withAlphaComponent(min(opacity, 1)).cgColor
         t.nativeForegroundColor = theme.ink
         t.nativeBackgroundColor = theme.background
         t.backgroundOpacity = opacity
@@ -142,6 +174,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
         terminal?.terminate()
         terminal = nil
         blur = nil
+        titleTint = nil
         window = nil
         NSApp.setActivationPolicy(.accessory)
     }

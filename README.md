@@ -7,20 +7,7 @@ tab looks the same: you can't tell which one is waiting for an answer, which one
 for twenty minutes, or which one finished while you were elsewhere. cockpit finds those sessions on its
 own, shows each one as a card with its live conversation, and keeps what needs you in front.
 
-```
- ◆ AGENT COCKPIT  grid 2×1                                                                         14:32:07
- ▲ 1 waiting   ? 1 your turn   ✕ 0 stuck?   ✉ 1 inbox   ● 0 working   ○ 2 idle   ◧ 0 panes
-╭ ▲ Login rate limit ──── claude · 1 ╮╭ ? Auth snapshots ─ claude work · 2 ╮│ INBOX                       1
-│ ~/src/api  ⎇ feat/limits  212k ctx ││ ~/src/web  ⎇ main          88k ctx ││ ✉ payments PR review       3h
-│ › add rate limiting to login       ││ › why do the snapshots fail on CI? ││   pull request · #412
-│ ⏺ Edit ~/src/api/limits.ts         ││ Two snapshots read the clock; I    ││
-│ Added a sliding-window limiter,    ││ froze it in the test setup.        ││ IDLE 1h+                    2
-│ five tries a minute per IP.        ││ ⋯                                  ││ ○ Migrate to Postgres 17  19h
-│                                    ││ Should I also pin the timezone?    ││   ~/src/db · s002
-│ ▲ waiting 2m · permission     plan ││ ? your turn 14m               high ││ ○ Release notes for 2.3    2d
-╰────────────────────────────────────╯╰────────────────────────────────────╯│   ~/src/app · s009
- ⏎ continue here   o go to tab   r reply   z zoom   │  n new   ! next needing me   v list   ? keys
-```
+![cockpit with four sessions, a to-do list, an inbox item and two idle sessions in the rail](docs/screenshot.png)
 
 ## What it does
 

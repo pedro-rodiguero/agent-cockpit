@@ -72,6 +72,8 @@ type event struct {
 	snap  model.Snapshot
 	chats map[string]chat.Conversation
 	msg   string
+	look  appearance    // evSnapshot: the appearance the settings ask for
+	quiet time.Duration // evSnapshot: how long a session idles before it moves to the rail
 }
 
 // paneServer is the part of mux.Client the dashboard uses; tests substitute a fake.
@@ -99,6 +101,9 @@ type App struct {
 	focus     func(tty string) error    // brings a terminal tab to the front; term.Focus outside tests
 	stop      func(model.Session) error // stops a session's agent before it is resumed in a pane
 	muxErr    string
+
+	look     appearance       // the theme in use
+	lookFrom appearanceReader // used by the collect goroutine only
 
 	snap  model.Snapshot
 	convs map[string]chat.Conversation // session ID → the end of its conversation and what its log says
@@ -174,6 +179,8 @@ func Run(col *source.Collector, opts Options) error {
 	defer restoreOnPanic(scr)
 	a := newApp(col, opts)
 	a.scr = scr
+	a.look = a.lookFrom.read(opts.Settings.Current(), time.Now())
+	useTheme(a.look)
 	a.w, a.h = scr.size()
 	live := a.run()
 	scr.close()
@@ -326,7 +333,9 @@ func (a *App) collectLoop(ctx context.Context) {
 		cctx, cancel := context.WithTimeout(ctx, collectTimeout)
 		snap := a.col.Collect(cctx)
 		cancel()
-		a.post(event{kind: evSnapshot, snap: snap, chats: readChats(&a.chats, snap.Sessions)})
+		cfg := a.opts.Settings.Current()
+		a.post(event{kind: evSnapshot, snap: snap, chats: readChats(&a.chats, snap.Sessions),
+			look: a.lookFrom.read(cfg, time.Now()), quiet: cfg.QuietAfter.Or(defaultQuietAfter)})
 		select {
 		case <-ctx.Done():
 			return
@@ -373,6 +382,16 @@ func (a *App) handle(ev event) {
 	case evSnapshot:
 		a.loading = false
 		a.snap, a.convs = markAsked(ev.snap, ev.chats), ev.chats
+		if ev.quiet > 0 {
+			quietAfter = ev.quiet
+		}
+		if ev.look != a.look {
+			a.look = ev.look
+			useTheme(a.look)
+			if a.scr != nil {
+				a.scr.repaint()
+			}
+		}
 		a.rebuild()
 		a.updateLabels()
 		a.runPendingMoves()

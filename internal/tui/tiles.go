@@ -82,7 +82,10 @@ func (t tile) agent() string {
 }
 
 // quietAfter is how long a session may sit idle before it gives its card up for a row in the rail.
-const quietAfter = time.Hour
+// The settings change it; only the event loop touches it.
+var quietAfter = defaultQuietAfter
+
+const defaultQuietAfter = time.Hour
 
 // place is where a tile goes in the grid view: a card in the grid, or a row in one of the rail's
 // sections. The rail holds what is not happening now: to-do tasks, items to read elsewhere, panes whose

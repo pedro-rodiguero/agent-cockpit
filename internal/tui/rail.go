@@ -25,13 +25,16 @@ const (
 	railEntryRows = 2
 )
 
-var railSections = map[place]string{inTodo: "TO DO", inInbox: "INBOX", inEnded: "ENDED", inQuiet: "IDLE 1h+"}
+var railSections = map[place]string{inTodo: "TO DO", inInbox: "INBOX", inEnded: "ENDED"}
 
 // railSection is the section a tile is listed under: its place, and for tasks the group they belong to.
 func railSection(t tile, now time.Time) string {
 	p := t.place(now)
 	if p == inTodo && t.sess.Group != "" {
 		return strings.ToUpper(t.sess.Group)
+	}
+	if p == inQuiet {
+		return "IDLE " + shortDuration(quietAfter) + "+"
 	}
 	return railSections[p]
 }

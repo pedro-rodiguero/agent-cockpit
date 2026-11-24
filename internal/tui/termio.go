@@ -80,6 +80,14 @@ type cursor struct {
 	show bool
 }
 
+// repaint makes the next frame redraw every line, after a change of theme.
+func (s *screen) repaint() {
+	s.prev = nil
+	if s.down != nil {
+		s.down = newDownsampler()
+	}
+}
+
 // frame draws lines, rewriting only the ones that changed since the previous frame.
 func (s *screen) frame(lines []string, w, h int, cur cursor) {
 	if w != s.pw || h != s.ph {

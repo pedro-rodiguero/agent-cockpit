@@ -34,28 +34,8 @@ func detectColorDepth(getenv func(string) string) colorDepth {
 	return color256
 }
 
-// palette256 picks, by hand, the 256-color entries for the theme. The nearest entry by distance turns
-// every dark warm tone into a neutral grey; these keep the burnt-gold character where the palette
-// allows it.
-var palette256 = map[rgb]uint8{
-	cBg:       233,
-	cPanel:    235,
-	cPanelHi:  236,
-	cLine:     238,
-	cLineAttn: 94,
-	cInk:      187,
-	cSoft:     144,
-	cMuted:    101,
-	cFaint:    241,
-	cGold:     136,
-	cGoldHi:   179,
-	cWaiting:  173,
-	cAsked:    109,
-	cStuck:    167,
-	cBusy:     178,
-	cIdle:     243,
-	cInbox:    107,
-}
+// palette256 maps the theme's colors to the 256-color entries useTheme picked for them.
+var palette256 map[rgb]uint8
 
 // downsampler rewrites 24-bit color sequences as 256-color ones. It is used by one goroutine.
 type downsampler struct {

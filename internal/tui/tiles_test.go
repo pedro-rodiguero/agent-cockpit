@@ -35,7 +35,7 @@ func TestBuildTilesMergesPaneAndSessionByPID(t *testing.T) {
 		{ID: "b", PID: 20, State: model.Idle},
 	}
 	panes := []mux.PaneInfo{{ID: "p1", PID: 20}, {ID: "p2", PID: 99}}
-	tiles := buildTiles(sessions, panes, listView)
+	tiles := buildTiles(sessions, panes, listView, time.Now())
 	if got := keys(tiles); !equal(got, []string{"pane:p1", "pane:p2", "a"}) {
 		t.Fatalf("tiles = %v", got)
 	}
@@ -52,12 +52,20 @@ func TestBuildTilesGridOrder(t *testing.T) {
 	sessions := []model.Session{
 		{ID: "inbox", State: model.Inbox, Started: t0.Add(-time.Hour)},
 		{ID: "new", State: model.Waiting, Started: t0},
-		{ID: "old", State: model.Idle, Started: t0.Add(-time.Minute)},
+		{ID: "old", State: model.Idle, Started: t0.Add(-time.Minute), Since: t0.Add(-time.Minute)},
+		{ID: "stale", State: model.Idle, Started: t0.Add(-9 * time.Hour), Since: t0.Add(-5 * time.Hour)},
+		{ID: "stale2", State: model.Idle, Started: t0.Add(-8 * time.Hour), Since: t0.Add(-2 * time.Hour)},
 	}
-	if got := keys(buildTiles(sessions, nil, gridView)); !equal(got, []string{"old", "new", "inbox"}) {
-		t.Errorf("grid order = %v", got)
+	panes := []mux.PaneInfo{{ID: "gone", Exited: true}, {ID: "live"}}
+	tiles := buildTiles(sessions, panes, gridView, t0)
+	want := []string{"pane:live", "old", "new", "inbox", "pane:gone", "stale2", "stale"}
+	if got := keys(tiles); !equal(got, want) {
+		t.Errorf("grid order = %v, want %v", got, want)
 	}
-	if got := keys(buildTiles(sessions, nil, listView)); !equal(got, []string{"inbox", "new", "old"}) {
+	if n := railCount(tiles, t0); n != 4 {
+		t.Errorf("railCount = %d, want 4", n)
+	}
+	if got := keys(buildTiles(sessions[:3], nil, listView, t0)); !equal(got, []string{"inbox", "new", "old"}) {
 		t.Errorf("list order = %v, want the collector's", got)
 	}
 }
@@ -68,7 +76,7 @@ func TestNeedingAttention(t *testing.T) {
 		{ID: "wait", State: model.Waiting},
 		{ID: "typing", State: model.Busy},
 	}
-	tiles := buildTiles(sessions, nil, listView)
+	tiles := buildTiles(sessions, nil, listView, time.Now())
 	if got := keys(needingAttention(tiles, "")); !equal(got, []string{"wait"}) {
 		t.Errorf("got %v", got)
 	}

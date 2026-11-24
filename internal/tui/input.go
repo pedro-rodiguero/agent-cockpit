@@ -177,9 +177,9 @@ func (a *App) navKey(k key) {
 	case actLast:
 		a.selectIndex(len(a.tiles) - 1)
 	case actPageDown:
-		a.selectIndex(a.cur() + a.lay.perPage)
+		a.page(1)
 	case actPageUp:
-		a.selectIndex(a.cur() - a.lay.perPage)
+		a.page(-1)
 	case actNext:
 		a.cycle(1)
 	case actPrev:
@@ -275,17 +275,56 @@ func (a *App) cycle(d int) {
 	}
 }
 
-// move goes one card in a direction: across a grid row, or by a whole row up and down.
+// move goes one card in a direction: across a grid row, or by a whole row up and down. Right from the
+// last column enters the rail, where up and down go through its rows and left returns to the grid.
 func (a *App) move(dx, dy int) {
+	l := a.lay
 	if a.view == listView || a.zoom {
 		a.selectIndex(a.cur() + dx + dy)
 		return
 	}
-	if dx != 0 {
-		a.selectIndex(a.cur() + dx)
-	} else {
-		a.selectIndex(a.cur() + dy*a.lay.cols)
+	i := a.cur()
+	if l.inRail(i) {
+		switch {
+		case dy != 0:
+			a.selectIndex(max(l.mainN, i+dy))
+		case dx < 0 && l.mainN > 0:
+			a.railSel = a.sel
+			a.selectIndex(a.indexIn(a.gridSel, 0, l.mainN, l.first))
+		}
+		return
 	}
+	lastInRow := (i-l.first)%l.cols == l.cols-1 || i == l.mainN-1
+	switch {
+	case dx > 0 && lastInRow && l.rail.w > 0:
+		a.gridSel = a.sel
+		a.selectIndex(a.indexIn(a.railSel, l.mainN, len(a.tiles), l.mainN))
+	case dx != 0:
+		a.selectIndex(min(l.mainN-1, i+dx))
+	default:
+		a.selectIndex(min(l.mainN-1, i+dy*l.cols))
+	}
+}
+
+// indexIn is the index of the tile with key in [from, to), or fallback when it is not there.
+func (a *App) indexIn(key string, from, to, fallback int) int {
+	if i := a.index(key); i >= from && i < to {
+		return i
+	}
+	return fallback
+}
+
+// page moves the grid or list by d pages, staying among the cards.
+func (a *App) page(d int) {
+	l := a.lay
+	if l.mainN == 0 {
+		return
+	}
+	i := a.cur()
+	if l.inRail(i) {
+		i = l.first
+	}
+	a.selectIndex(max(0, min(l.mainN-1, i+d*l.perPage)))
 }
 
 func (a *App) selectNextNeedingAttention() {

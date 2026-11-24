@@ -40,6 +40,7 @@ func detectColorDepth(getenv func(string) string) colorDepth {
 var palette256 = map[rgb]uint8{
 	cBg:       233,
 	cPanel:    235,
+	cPanelHi:  236,
 	cLine:     238,
 	cLineAttn: 94,
 	cInk:      187,

@@ -105,6 +105,8 @@ func (a *App) emptyMessage() string {
 		return "  collecting…"
 	case a.onlyAttn:
 		return "  nothing needs you right now · a shows all"
+	case a.railN > 0:
+		return "  nothing running right now · n opens a new pane"
 	default:
 		return "  no sessions · n opens a new one"
 	}
@@ -172,12 +174,12 @@ func (a *App) stateChip(st model.State) string {
 func (a *App) gridBody() ([]string, cursor) {
 	l := a.lay
 	var cur cursor
-	if len(a.tiles) == 0 {
-		return []string{pad(paint(cMuted, cBg, a.emptyMessage()), l.w, cBg)}, cur
+	var out []string
+	if l.count == 0 {
+		out = append(out, pad(paint(cMuted, cBg, a.emptyMessage()), l.gridW, cBg))
 	}
 	sel := a.cur()
-	out := make([]string, 0, l.bodyH)
-	for r := 0; r < l.rows; r++ {
+	for r := 0; r < l.rows && l.count > 0; r++ {
 		var cells [][]string
 		rowH, used := l.cell(r*l.cols).h, 0
 		for c := 0; c < l.cols; c++ {
@@ -199,10 +201,19 @@ func (a *App) gridBody() ([]string, cursor) {
 			for _, cell := range cells {
 				sb.WriteString(cell[y])
 			}
-			if used < l.w {
-				sb.WriteString(paint(cInk, cBg, strings.Repeat(" ", l.w-used)))
+			if used < l.gridW {
+				sb.WriteString(paint(cInk, cBg, strings.Repeat(" ", l.gridW-used)))
 			}
 			out = append(out, sb.String())
+		}
+	}
+	for len(out) < l.bodyH {
+		out = append(out, pad("", l.gridW, cBg))
+	}
+	if l.rail.w > 0 {
+		rail := a.railBody(l.rail, time.Now())
+		for y := range out {
+			out[y] += rail[y]
 		}
 	}
 	return out, cur

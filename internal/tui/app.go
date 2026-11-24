@@ -101,8 +101,11 @@ type App struct {
 	convs map[string]chat.Conversation // session ID → the end of its conversation and what its log says
 	panes []mux.PaneInfo
 	tiles []tile
+	railN int    // how many tiles at the end of tiles belong in the rail
 	sel   string // key of the selected tile
 	lay   layout
+	// The selection last held in the grid and in the rail, so moving between them returns to it.
+	gridSel, railSel string
 
 	view     viewKind
 	onlyAttn bool
@@ -436,7 +439,8 @@ func (a *App) rebuild() {
 	if a.mc != nil {
 		a.panes = a.mc.Panes()
 	}
-	tiles := buildTiles(a.snap.Sessions, a.panes, a.view)
+	now := time.Now()
+	tiles := buildTiles(a.snap.Sessions, a.panes, a.view, now)
 	if a.onlyAttn {
 		keep := ""
 		if a.mode == insertMode {
@@ -445,6 +449,10 @@ func (a *App) rebuild() {
 		tiles = needingAttention(tiles, keep)
 	}
 	a.tiles = tiles
+	a.railN = 0
+	if a.view == gridView {
+		a.railN = railCount(tiles, now)
+	}
 	a.forgetClosedPanes()
 	if a.index(a.sel) < 0 {
 		a.sel = ""
@@ -476,7 +484,7 @@ func (a *App) hasPane(id string) bool {
 
 // relayout recomputes the layout for the current state and resizes visible panes to their cards.
 func (a *App) relayout() {
-	a.lay = computeLayout(a.w, a.h, len(a.tiles), a.view, a.zoom, a.index(a.sel))
+	a.lay = computeLayout(a.w, a.h, len(a.tiles), a.railN, a.view, a.zoom, a.index(a.sel), a.lay.page)
 	a.syncPaneSizes()
 }
 
@@ -502,8 +510,7 @@ func (a *App) syncPaneSizes() {
 // newPaneSize is the terminal size a new pane will most likely get: its card in the grid once it has
 // been added. The card size is corrected by a resize as soon as the pane shows up.
 func (a *App) newPaneSize() (cols, rows int) {
-	n := len(a.tiles) + 1
-	return computeLayout(a.w, a.h, n, gridView, false, n-1).innerSize(0)
+	return computeLayout(a.w, a.h, len(a.tiles)+1, a.railN, gridView, false, 0, 0).innerSize(0)
 }
 
 func (a *App) updateLabels() {
@@ -511,7 +518,7 @@ func (a *App) updateLabels() {
 		return
 	}
 	// Every session counts, not just the ones the attention filter shows.
-	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view)))
+	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view, time.Now())))
 	a.shownLabels = next
 	a.labels.set(changes)
 }

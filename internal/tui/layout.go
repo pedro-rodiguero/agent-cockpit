@@ -11,6 +11,13 @@ const (
 	minCellW = 40 // smallest grid card, borders included
 	minCellH = 9
 
+	// The side rail takes railPercent of the window, within these bounds, once the window is at least
+	// minRailWindow wide; narrower windows show the rail's tiles as cards.
+	railPercent   = 22
+	minRailW      = 32
+	maxRailW      = 46
+	minRailWindow = 110
+
 	listHeadRows   = 2 // separator and column titles
 	listDetailRows = 8 // separator and the selected session's details
 	minListRows    = 3
@@ -39,20 +46,29 @@ type rect struct{ x, y, w, h int }
 type layout struct {
 	view        viewKind
 	w           int
-	bodyTop     int // first screen row of the body
-	bodyH       int // rows between header and footer
-	cols, rows  int // grid arrangement of the current page; the list is one column
-	first       int // index of the first tile on the current page
-	count       int // tiles on the current page
-	perPage     int // tiles on a full page: the paging step
+	gridW       int  // width of the card grid: the window minus the rail
+	rail        rect // the side rail; zero when there is none
+	mainN       int  // tiles shown as cards or list rows; the ones after them are in the rail
+	bodyTop     int  // first screen row of the body
+	bodyH       int  // rows between header and footer
+	cols, rows  int  // grid arrangement of the current page; the list is one column
+	first       int  // index of the first tile on the current page
+	count       int  // tiles on the current page
+	perPage     int  // tiles on a full page: the paging step
 	page, pages int
 }
 
-// computeLayout lays out n tiles with tile sel selected.
-func computeLayout(w, h, n int, view viewKind, zoom bool, sel int) layout {
-	l := layout{view: view, w: w, bodyTop: headerRows, bodyH: max(0, h-headerRows-footerRows), cols: 1, rows: 1}
-	capC, capR := max(1, w/minCellW), max(1, l.bodyH/minCellH)
+// computeLayout lays out n tiles, the last railN of which belong in the rail, with tile sel selected.
+// When the selection is in the rail the grid stays on page.
+func computeLayout(w, h, n, railN int, view viewKind, zoom bool, sel, page int) layout {
+	l := layout{view: view, w: w, gridW: w, mainN: n, bodyTop: headerRows, bodyH: max(0, h-headerRows-footerRows), cols: 1, rows: 1}
 	tiled := view == gridView && !zoom
+	if tiled && railN > 0 && w >= minRailWindow {
+		rw := min(maxRailW, max(minRailW, w*railPercent/100))
+		l.gridW, l.mainN = w-rw, n-railN
+		l.rail = rect{x: l.gridW, y: l.bodyTop, w: rw, h: l.bodyH}
+	}
+	capC, capR := max(1, l.gridW/minCellW), max(1, l.bodyH/minCellH)
 	switch {
 	case view == listView:
 		l.perPage = listRows(l.bodyH)
@@ -61,18 +77,24 @@ func computeLayout(w, h, n int, view viewKind, zoom bool, sel int) layout {
 	default:
 		l.perPage = capC * capR
 	}
-	if n > 0 {
-		sel = max(0, min(n-1, sel))
-		l.pages = (n + l.perPage - 1) / l.perPage
-		l.page = sel / l.perPage
+	if l.mainN > 0 {
+		l.pages = (l.mainN + l.perPage - 1) / l.perPage
+		if sel >= 0 && sel < l.mainN {
+			l.page = sel / l.perPage
+		} else {
+			l.page = max(0, min(l.pages-1, page))
+		}
 		l.first = l.page * l.perPage
-		l.count = min(n, l.first+l.perPage) - l.first
+		l.count = min(l.mainN, l.first+l.perPage) - l.first
 	}
 	if tiled {
-		l.cols, l.rows = bestGrid(l.count, w, l.bodyH, capC, capR)
+		l.cols, l.rows = bestGrid(l.count, l.gridW, l.bodyH, capC, capR)
 	}
 	return l
 }
+
+// inRail reports whether tile i is in the rail.
+func (l layout) inRail(i int) bool { return l.rail.w > 0 && i >= l.mainN }
 
 // listRows is how many session rows the list view shows in a body of bodyH rows.
 func listRows(bodyH int) int { return max(minListRows, bodyH-listHeadRows-listDetailRows) }
@@ -101,7 +123,7 @@ func bestGrid(n, W, H, capC, capR int) (cols, rows int) {
 // cell is the screen region of the k-th card on the page, borders included.
 func (l layout) cell(k int) rect {
 	r, c := k/l.cols, k%l.cols
-	x0, x1 := c*l.w/l.cols, (c+1)*l.w/l.cols
+	x0, x1 := c*l.gridW/l.cols, (c+1)*l.gridW/l.cols
 	y0, y1 := r*l.bodyH/l.rows, (r+1)*l.bodyH/l.rows
 	return rect{x: x0, y: l.bodyTop + y0, w: x1 - x0, h: y1 - y0}
 }

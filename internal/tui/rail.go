@@ -1,0 +1,112 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
+// The rail is a column on the right of the grid for what is not happening now. It is drawn on the
+// panel background, one section per place, each tile a two-row entry:
+//
+//	│ INBOX                             1
+//	│ ✉ payments                       3h
+//	│   review requested · Retry webhooks…
+//	│
+//	│ IDLE 1h+                          5
+//	│ ○ Migrate to Postgres 17        19h
+//	│   ~/src/db · s002
+const (
+	railEdge      = "│"
+	railEntryRows = 2
+)
+
+var railSections = map[place]string{inInbox: "INBOX", inEnded: "ENDED", inQuiet: "IDLE 1h+"}
+
+// railBody draws the rail's tiles, tiles[mainN:], into r. When they do not fit, the rows scroll so
+// the selected entry stays in view.
+func (a *App) railBody(r rect, now time.Time) []string {
+	type span struct{ from, to int }
+	var rows []string
+	add := func(s string) { rows = append(rows, s) }
+	line := func(s string, bg rgb) string {
+		return paint(cLine, cBg, railEdge) + pad(s, r.w-1, bg)
+	}
+	sel, selSpan := a.cur(), span{}
+	tiles := a.tiles[a.lay.mainN:]
+	for i, t := range tiles {
+		p := t.place(now)
+		if i == 0 || tiles[i-1].place(now) != p {
+			if i > 0 {
+				add(line("", cPanel))
+			}
+			n := 0
+			for _, u := range tiles[i:] {
+				if u.place(now) == p {
+					n++
+				}
+			}
+			label, count := " "+railSections[p], fmt.Sprintf("%d ", n)
+			add(line(paint(cFaint, cPanel, label+strings.Repeat(" ", max(1, r.w-1-width(label)-width(count)))+count), cPanel))
+		}
+		idx := a.lay.mainN + i
+		if idx == sel {
+			selSpan = span{len(rows), len(rows) + railEntryRows}
+		}
+		for _, row := range railEntry(t, r.w-1, idx == sel, now) {
+			add(paint(cLine, cBg, railEdge) + row)
+		}
+	}
+	top := 0
+	if selSpan.to > r.h {
+		top = selSpan.to - r.h
+	}
+	out := rows[min(top, len(rows)):]
+	if len(out) > r.h {
+		out = out[:r.h]
+	}
+	for len(out) < r.h {
+		out = append(out, line("", cPanel))
+	}
+	return out
+}
+
+// railEntry is a tile's two rows in the rail, w cells wide: state, name and age; then where it runs,
+// or what an item is about.
+func railEntry(t tile, w int, selected bool, now time.Time) []string {
+	bg, mark, nameFg := cPanel, " ", cSoft
+	st := t.state()
+	l := look(st)
+	ageFg := cFaint
+	if st.NeedsAttention() {
+		nameFg, ageFg = cInk, l.color
+	}
+	if selected {
+		bg, mark, nameFg = cPanelHi, "▌", cGoldHi
+	}
+	glyph, glyphFg := l.glyph, l.color
+	age := ago(since(t), now)
+	var detail string
+	switch {
+	case t.pane != nil && t.pane.Exited:
+		glyph, glyphFg = "◧", cFaint
+		age = fmt.Sprintf("code %d", t.pane.ExitCode)
+		detail = t.pane.Agent + " · " + tilde(t.pane.Cwd)
+	case t.isItem():
+		detail = firstOf(t.sess.Detail, "item")
+		if t.sess.Title != "" {
+			detail += " · " + t.sess.Title
+		}
+	default:
+		parts := []string{tilde(t.sess.Cwd)}
+		if tty := strings.TrimPrefix(t.sess.TTY, "tty"); tty != "" {
+			parts = append(parts, tty)
+		}
+		detail = strings.Join(parts, " · ")
+	}
+	right := " " + age + " "
+	nameW := max(1, w-3-width(right))
+	first := paint(cGold, bg, mark) + paint(glyphFg, bg, glyph+" ") + paint(nameFg, bg, fit(t.name(), nameW)) + paint(ageFg, bg, right)
+	second := paint(cFaint, bg, "   "+fit(detail, max(1, w-4)))
+	return []string{pad(first, w, bg), pad(second, w, bg)}
+}

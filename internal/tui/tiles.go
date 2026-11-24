@@ -3,6 +3,7 @@ package tui
 import (
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
@@ -64,11 +65,40 @@ func (t tile) agent() string {
 	return ""
 }
 
+// quietAfter is how long a session may sit idle before it gives its card up for a row in the rail.
+const quietAfter = time.Hour
+
+// place is where a tile goes in the grid view: a card in the grid, or a row in one of the rail's
+// sections. The rail holds what is not happening now: items to read elsewhere, panes whose program
+// exited, and sessions nobody has touched for a while.
+type place int
+
+const (
+	inGrid place = iota
+	inInbox
+	inEnded
+	inQuiet
+)
+
+func (t tile) place(now time.Time) place {
+	switch {
+	case t.isItem():
+		return inInbox
+	case t.pane != nil && t.pane.Exited:
+		return inEnded
+	case t.pane == nil && t.state() == model.Idle && now.Sub(since(t)) > quietAfter:
+		return inQuiet
+	}
+	return inGrid
+}
+
 // buildTiles merges collected sessions with the server's panes. A pane whose process is a session's
-// process (the agent itself, since the pane's shell execs it) becomes one tile with both. Panes come
-// first; in the grid the remaining sessions are ordered by start time so cards keep their places, with
-// inbox items last. The list keeps the collector's order, most urgent first.
-func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind) []tile {
+// process (the agent itself, since the pane's shell execs it) becomes one tile with both.
+//
+// The list keeps the collector's order, most urgent first. The grid view orders tiles by place: cards
+// first (panes, then sessions by start time, so cards keep their places), then the rail's sections,
+// each of whose quiet sessions comes most recently active first.
+func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time) []tile {
 	byPID := map[int]int{}
 	for i, s := range sessions {
 		if s.PID != 0 {
@@ -92,14 +122,28 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind) [
 		}
 	}
 	if view == gridView {
-		sort.SliceStable(rest, func(i, j int) bool {
-			if ii, ij := rest[i].isItem(), rest[j].isItem(); ii != ij {
-				return ij
+		sort.SliceStable(rest, func(i, j int) bool { return rest[i].sess.Started.Before(rest[j].sess.Started) })
+	}
+	tiles = append(tiles, rest...)
+	if view == gridView {
+		sort.SliceStable(tiles, func(i, j int) bool {
+			pi, pj := tiles[i].place(now), tiles[j].place(now)
+			if pi != pj || pi != inQuiet {
+				return pi < pj
 			}
-			return rest[i].sess.Started.Before(rest[j].sess.Started)
+			return since(tiles[i]).After(since(tiles[j]))
 		})
 	}
-	return append(tiles, rest...)
+	return tiles
+}
+
+// railCount is how many tiles at the end of a grid-ordered slice belong in the rail.
+func railCount(tiles []tile, now time.Time) int {
+	n := 0
+	for i := len(tiles) - 1; i >= 0 && tiles[i].place(now) != inGrid; i-- {
+		n++
+	}
+	return n
 }
 
 // needingAttention keeps the tiles that need the person, plus the tile keep (the pane being typed into,

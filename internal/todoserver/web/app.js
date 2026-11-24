@@ -46,7 +46,7 @@ function fill(el, ...kids) {
   el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
 }
 
-const VIEWS = ['loading', 'signin', 'offline-empty', 'list', 'settings'];
+const VIEWS = ['loading', 'signin', 'offline-empty', 'list', 'settings', 'sub'];
 let current = 'loading';
 
 function show(name, focusId) {
@@ -77,6 +77,7 @@ let toastTimer = 0;
 function toast(message) {
   const el = $('toast');
   el.textContent = message;
+  el.classList.toggle('is-raised', current === 'list');
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, 3800);
@@ -101,6 +102,8 @@ const dateTimeFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', ti
 const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
 const dayMonthFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
 const relFmt = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+const dayWordFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const dayMonthWordFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
 
 const DAY = 86_400_000;
 
@@ -114,10 +117,32 @@ function validTime(s) { const d = new Date(s); return Number.isNaN(d.getTime()) 
 
 function fmtDateTime(s) { const d = validTime(s); return d ? dateTimeFmt.format(d) : ''; }
 
+function fmtDay(s) { const d = validTime(s); return d ? dayMonthWordFmt.format(d).toLowerCase() : ''; }
+
+function fmtClock(s, now = new Date()) {
+  const d = validTime(s);
+  if (!d) return '';
+  return dayDiff(d, now) === 0 ? timeFmt.format(d) : `${fmtDay(s)} ${timeFmt.format(d)}`;
+}
+
 function fmtWhen(s, now = new Date()) {
   const d = validTime(s);
   if (!d) return '';
   return dayDiff(d, now) === 0 ? timeFmt.format(d) : dateTimeFmt.format(d);
+}
+
+// agoShort is the dashboard's age column: "now", "5m ago", "2h ago", "3d ago".
+function agoShort(s, now = new Date()) {
+  const d = validTime(s);
+  if (!d) return 'never';
+  const mins = Math.round((now - d) / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return fmtDay(s);
 }
 
 function ago(s, now = new Date()) {
@@ -134,15 +159,20 @@ function ago(s, now = new Date()) {
   return dayMonthFmt.format(d);
 }
 
-// The dashboard's wording (internal/tui/rail.go, due): "2d late", "today", "tomorrow", "in 3d".
-function dueLabel(due, now) {
+function dueDays(due, now) {
   const at = parseISODate(due);
-  if (!at) return null;
-  const days = dayDiff(at, now);
-  if (days < 0) return { text: `${-days}d late`, cls: 'due-late' };
-  if (days === 0) return { text: 'today', cls: 'due-today' };
-  if (days === 1) return { text: 'tomorrow', cls: 'due-tomorrow' };
-  return { text: `in ${days}d`, cls: '' };
+  return at ? dayDiff(at, now) : null;
+}
+
+// The dashboard's wording (internal/tui/rail.go, due): "2d late", "today", "tomorrow", "in 3d", with
+// its state glyphs: ▲ for late (stuck), ● for today (waiting).
+function dueLabel(due, now) {
+  const days = dueDays(due, now);
+  if (days === null) return null;
+  if (days < 0) return { glyph: '▲', text: `${-days}d late`, cls: 'due-late' };
+  if (days === 0) return { glyph: '●', text: 'today', cls: 'due-today' };
+  if (days === 1) return { glyph: '', text: 'tomorrow', cls: 'due-tomorrow' };
+  return { glyph: '', text: `in ${days}d`, cls: '' };
 }
 
 function doneLabel(done, now) {
@@ -209,10 +239,21 @@ function parseLine(line, groups, now = new Date()) {
   return { text: words.join(' '), group, due };
 }
 
+// dueToken writes a due date the way a person types it and parse.go reads it back to the same day:
+// @25/11 for a coming date, @25/11/2026 for today or a past one (a bare day and month means the next
+// such day, so it would jump a year).
+function dueToken(due, now = new Date()) {
+  const at = parseISODate(due);
+  if (!at) return '@' + due;
+  const short = `${at.getDate()}/${at.getMonth() + 1}`;
+  if (dayDiff(at, now) > 0 && parseDate(short, now) === due) return '@' + short;
+  return `@${short}/${at.getFullYear()}`;
+}
+
 function formatLine(t) {
   const parts = [t.text];
   if (t.group) parts.push('#' + t.group.replaceAll(' ', '_'));
-  if (t.due) parts.push('@' + t.due);
+  if (t.due) parts.push(dueToken(t.due));
   return parts.join(' ');
 }
 
@@ -334,7 +375,7 @@ function markReachable() {
 
 function markUnreachable(e) {
   reachable = false;
-  unreachableWhy = e instanceof ApiError ? "Can't reach the server right now." : 'Offline.';
+  unreachableWhy = e instanceof ApiError ? 'server unreachable' : 'offline';
   renderNet();
 }
 
@@ -497,22 +538,63 @@ function tick() {
 
 // ---------- rendering the list ----------
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function icon(d, className) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  if (className) svg.setAttribute('class', className);
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+
+const chevron = () => icon('M6 3.5 10.5 8 6 12.5', 'go');
+const glyph = (g) => h('span', { 'aria-hidden': 'true', text: `${g} ` });
+
 function renderNet() {
-  const el = $('net-note');
+  const meta = $('sync-meta');
+  const note = $('net-note');
   const waiting = queue.length;
+  meta.classList.toggle('is-off', !reachable);
+  if (!reachable) meta.textContent = server && server.at ? `offline · ${fmtClock(server.at)}` : 'offline';
+  else if (waiting && auth === 'in') meta.textContent = 'sending';
+  else meta.textContent = server && server.at ? `synced ${fmtClock(server.at)}` : '';
   if (reachable && !waiting) {
-    el.hidden = true;
+    note.hidden = true;
     return;
   }
   const parts = [];
   if (!reachable) {
-    parts.push(unreachableWhy || 'Offline.');
-    if (server && server.at) parts.push(`Showing the list from ${fmtWhen(server.at)}.`);
+    parts.push(unreachableWhy || 'offline');
+    if (server && server.at) parts.push(`showing the list from ${fmtClock(server.at)}`);
   }
-  if (waiting) parts.push(waiting === 1 ? '1 change waiting to be sent.' : `${waiting} changes waiting to be sent.`);
-  if (reachable && auth === 'out') parts.push('Sign in to send them.');
-  el.textContent = parts.join(' ');
-  el.hidden = false;
+  if (waiting) parts.push(waiting === 1 ? '1 change waiting to be sent' : `${waiting} changes waiting to be sent`);
+  if (reachable && auth === 'out') parts.push('sign in to send them');
+  note.textContent = `○ ${parts.join(' · ')}`;
+  note.hidden = false;
+}
+
+function renderTally(open, now) {
+  let late = 0;
+  let today = 0;
+  for (const t of open) {
+    const d = dueDays(t.due, now);
+    if (d === null) continue;
+    if (d < 0) late++;
+    else if (d === 0) today++;
+  }
+  fill($('tally'),
+    h('span', { class: late ? 'is-late' : 'is-zero' }, h('b', {}, glyph('▲'), String(late)), ' late'),
+    h('span', { class: today ? 'is-today' : 'is-zero' }, h('b', {}, glyph('●'), String(today)), ' today'),
+    h('span', { class: open.length ? '' : 'is-zero' }, glyph('□'), `${open.length} open`));
+}
+
+function dueNode(d) {
+  return h('span', { class: cls('due', d.cls) }, d.glyph ? glyph(d.glyph) : null, d.text);
 }
 
 function taskRow(t, pending, now) {
@@ -531,10 +613,10 @@ function taskRow(t, pending, now) {
   });
 
   const side = h('span', { class: 'task-side' });
-  if (done) side.append(h('span', { text: doneLabel(t.done, now) }));
+  if (done) side.append(h('span', { class: 'due', text: doneLabel(t.done, now) }));
   else {
     const d = dueLabel(t.due, now);
-    if (d) side.append(h('span', { class: cls('due', d.cls), text: d.text }));
+    if (d) side.append(dueNode(d));
   }
   if (isPending) side.append(h('span', { class: 'pending-mark', text: 'not sent' }));
 
@@ -552,18 +634,25 @@ function taskRow(t, pending, now) {
 function emptyState(anyDone) {
   if (anyDone) {
     return h('div', { class: 'empty' },
-      h('p', { class: 'empty-title', text: 'All done.' }),
-      h('p', { text: 'Nothing open. Add the next thing below.' }));
+      h('p', { class: 'empty-title', text: 'ALL DONE' }),
+      h('p', { text: 'Nothing open. Type the next thing below.' }));
   }
   return h('div', { class: 'empty' },
-    h('p', { class: 'empty-title', text: 'Nothing to do yet.' }),
-    h('p', {}, 'Add a task below. ', h('code', { text: '#Group' }), ' files it, ',
-      h('code', { text: '@tomorrow' }), ' gives it a date.'));
+    h('p', { class: 'empty-title', text: 'NOTHING TO DO YET' }),
+    h('p', {}, 'Type a task below. ', h('span', { class: 'tok-g', text: '#group' }), ' files it, ',
+      h('span', { class: 'tok-d', text: '@tomorrow' }), ' dates it.'));
 }
 
 function skeleton() {
-  return h('div', { class: 'skeleton', 'aria-label': 'Loading the list' },
-    h('span'), h('span'), h('span'), h('span'));
+  return h('div', { class: 'skeleton', 'aria-label': 'Loading the list' }, h('span'), h('span'));
+}
+
+function sortGroup(list) {
+  return list.map((t, i) => [t, i]).sort(([a, i], [b, j]) => {
+    if (!a.due !== !b.due) return a.due ? -1 : 1;
+    if (a.due !== b.due) return a.due < b.due ? -1 : 1;
+    return i - j;
+  }).map(([t]) => t);
 }
 
 function render() {
@@ -572,7 +661,7 @@ function render() {
   if (!server) {
     $('tasks').replaceChildren(skeleton());
     $('done').hidden = true;
-    $('open-count').textContent = '';
+    fill($('tally'));
     renderChips();
     return;
   }
@@ -592,24 +681,22 @@ function render() {
 
   const frag = document.createDocumentFragment();
   if (!open.length) frag.append(emptyState(done.length > 0));
+  let n = 0;
   for (const [g, list] of byGroup) {
     if (!list.length) continue;
-    const sorted = list.map((t, i) => [t, i]).sort(([a, i], [b, j]) => {
-      if (!a.due !== !b.due) return a.due ? -1 : 1;
-      if (a.due !== b.due) return a.due < b.due ? -1 : 1;
-      return i - j;
-    }).map(([t]) => t);
-    const headId = `g-${g.replace(/[^A-Za-z0-9_-]/g, '_')}`;
-    frag.append(h('section', { class: 'group', 'aria-labelledby': headId },
-      h('h2', { class: 'group-head', id: headId }, h('span', { text: g }), h('span', { class: 'group-count', text: String(list.length) })),
-      h('ul', { class: 'task-list' }, sorted.map((t) => taskRow(t, pending, now)))));
+    const sorted = sortGroup(list);
+    const attn = sorted.some((t) => { const d = dueDays(t.due, now); return d !== null && d <= 0; });
+    const headId = `g-${n++}`;
+    frag.append(h('section', { class: cls('box group', attn && 'is-attn'), 'aria-labelledby': headId },
+      h('h2', { class: 'box-h group-head' }, h('span', { id: headId, class: 'group-name', text: g }), h('span', { class: 'n', text: String(list.length) })),
+      h('ul', { class: 'rows' }, sorted.map((t) => taskRow(t, pending, now)))));
   }
   $('tasks').replaceChildren(frag);
 
   $('done').hidden = done.length === 0;
   $('done-count').textContent = String(done.length);
   $('done-list').replaceChildren(...done.map((t) => taskRow(t, pending, now)));
-  $('open-count').textContent = open.length ? String(open.length) : '';
+  renderTally(open.filter((t) => !settling.has(t.id)), now);
   renderChips();
 
   if (focused) document.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
@@ -638,31 +725,53 @@ function toggleDone(t) {
   render();
 }
 
+// summary describes a quick-add line the way the server will read it: "→ WORK · ● today · mon 24 nov".
+function summary(line, now = new Date()) {
+  const groups = server ? server.groups : [];
+  const p = parseLine(line, groups, now);
+  const group = p.group || (server ? server.defaultGroup : 'Tasks');
+  const parts = [h('span', { 'aria-hidden': 'true', text: '→' }), h('b', { text: group.toUpperCase() })];
+  const at = parseISODate(p.due);
+  if (at) {
+    const d = dueLabel(p.due, now);
+    parts.push(' · ');
+    if (d.cls === 'due-late' || d.cls === 'due-today') parts.push(h('span', { class: d.cls === 'due-late' ? 'is-late' : 'is-today', text: d.text }), ' · ');
+    else if (d.cls === 'due-tomorrow') parts.push('tomorrow · ');
+    parts.push(`${d.cls ? '' : 'due '}${dayWordFmt.format(at).toLowerCase()}`);
+  } else {
+    parts.push(' · no date');
+  }
+  const loose = line.split(/\s+/).filter((w) => w.length > 1 && w[0] === '@' && !parseDate(w.slice(1), now));
+  if (loose.length) parts.push(' · ', h('span', { class: 'is-late', text: `${loose[0]} is not a date` }));
+  return parts;
+}
+
+function tokenCount(line, now = new Date()) {
+  return line.split(/\s+/).filter((w) => w.length > 1 && (w[0] === '#' || (w[0] === '@' && parseDate(w.slice(1), now)))).length;
+}
+
 // ---------- adding ----------
 
 function renderChips() {
-  const chips = $('chips');
   const input = $('add-input');
   const value = input.value;
-  const words = value.split(/\s+/);
-  const groups = server ? server.groups.filter((g) => g !== server.defaultGroup).concat(server.groups.includes(server.defaultGroup) ? [server.defaultGroup] : []) : [];
-  const groupChips = groups.map((g) => {
-    const token = '#' + g.replaceAll(' ', '_');
-    return h('button', {
-      type: 'button',
-      class: cls('chip', words.some((w) => w.toLowerCase() === token.toLowerCase()) && 'is-on'),
-      text: token,
-      on: { mousedown: (e) => e.preventDefault(), click: () => insertToken('#', token) },
-    });
-  });
-  const dateChips = ['@today', '@tomorrow'].map((token) => h('button', {
+  const words = value.split(/\s+/).map((w) => w.toLowerCase());
+  const groups = server ? server.groups.filter((g) => g !== server.defaultGroup) : [];
+  const key = (prefix, name, token) => h('button', {
     type: 'button',
-    class: cls('chip', words.includes(token) && 'is-on'),
-    text: token,
-    on: { mousedown: (e) => e.preventDefault(), click: () => insertToken('@', token) },
-  }));
-  fill(chips, ...groupChips, groupChips.length ? h('span', { class: 'chip-sep', 'aria-hidden': 'true' }) : null, ...dateChips);
-  $('add-form').querySelector('.add-btn').disabled = !value.trim();
+    class: 'key chip',
+    'aria-pressed': String(words.includes(token.toLowerCase())),
+    on: { mousedown: (e) => e.preventDefault(), click: () => insertToken(prefix, token) },
+  }, h('span', {}, h('i', { text: prefix }), name));
+  fill($('keys'),
+    groups.map((g) => key('#', g, '#' + g.replaceAll(' ', '_'))),
+    groups.length ? h('span', { class: 'sep', 'aria-hidden': 'true' }) : null,
+    key('@', 'today', '@today'),
+    key('@', 'tomorrow', '@tomorrow'));
+  const trimmed = value.trim();
+  if (trimmed) fill($('add-parse'), summary(trimmed));
+  else fill($('add-parse'), h('span', { 'aria-hidden': 'true', text: '→' }), '#group files it · @date: today, tomorrow, 25/12');
+  $('add-form').querySelector('.add-btn').classList.toggle('is-ready', Boolean(trimmed));
 }
 
 function insertToken(prefix, token) {
@@ -717,6 +826,13 @@ function findTask(id) {
   return currentTasks().tasks.find((t) => t.id === id) || null;
 }
 
+function renderEditParse() {
+  const line = $('edit-line').value.replace(/\s+/g, ' ').trim();
+  const n = tokenCount(line);
+  $('edit-tokens').textContent = n === 1 ? '1 token' : `${n} tokens`;
+  fill($('edit-parse'), line ? summary(line) : null);
+}
+
 function openEdit(id) {
   const t = findTask(id);
   if (!t) return;
@@ -725,6 +841,9 @@ function openEdit(id) {
   formError(form, '');
   const area = $('edit-line');
   area.value = formatLine(t);
+  const created = validTime(t.created);
+  $('edit-meta').textContent = created ? `added ${dayMonthWordFmt.format(created).toLowerCase()}` : '';
+  renderEditParse();
   $('edit-sheet').showModal();
   area.focus();
   area.setSelectionRange(area.value.length, area.value.length);
@@ -732,6 +851,11 @@ function openEdit(id) {
 
 function closeSheet(dialog) {
   if (dialog.open) dialog.close();
+}
+
+function sameTask(t, line) {
+  const p = parseLine(line, server ? server.groups : []);
+  return p.text === t.text && (p.group || '') === (t.group || '') && (p.due || '') === (t.due || '');
 }
 
 function wireEdit() {
@@ -752,7 +876,7 @@ function wireEdit() {
       return;
     }
     closeSheet(sheet);
-    if (line !== formatLine(t)) mutate({ op: 'patch', id: t.id, body: { line } });
+    if (!sameTask(t, line)) mutate({ op: 'patch', id: t.id, body: { line } });
   });
   area.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -760,6 +884,7 @@ function wireEdit() {
       form.requestSubmit();
     }
   });
+  area.addEventListener('input', renderEditParse);
   $('edit-cancel').addEventListener('click', () => closeSheet(sheet));
   $('edit-delete').addEventListener('click', async () => {
     const t = findTask(editingId);
@@ -767,7 +892,7 @@ function wireEdit() {
     await confirmSheet({
       title: 'Delete this task?',
       text: t.text,
-      ok: 'Delete',
+      ok: 'Delete task',
       action: async () => {
         closeSheet(sheet);
         mutate({ op: 'delete', id: t.id });
@@ -796,7 +921,7 @@ function confirmSheet({ title, text, ok, password = false, name = null, tone = '
   $('confirm-text').textContent = text || '';
   $('confirm-text').hidden = !text;
   $('confirm-ok').textContent = ok;
-  $('confirm-ok').className = tone === 'primary' ? 'btn btn-primary' : 'btn btn-danger';
+  $('confirm-ok').className = tone === 'primary' ? 'btn btn-gold' : 'btn btn-danger';
   $('confirm-password-field').hidden = !password;
   $('confirm-name-field').hidden = name === null;
   form.elements.name.value = name || '';
@@ -987,8 +1112,9 @@ async function passkeySignIn() {
 function setupPasskeySignIn() {
   if (!passkeysSupported()) return;
   $('passkey-block').hidden = false;
-  $('passkey-signin').textContent = isApple() ? 'Sign in with Face ID' : 'Sign in with a passkey';
-  $('form-password').querySelector('button[type="submit"]').className = 'btn btn-secondary btn-block';
+  $('passkey-label').textContent = isApple() ? 'Sign in with Face ID' : 'Sign in with a passkey';
+  const device = passkeyDeviceName();
+  $('signin-device').textContent = device === 'This device' ? 'this device' : `this ${device}`;
   $('signin-username').setAttribute('autocomplete', 'username webauthn');
   $('signin-password').setAttribute('autocomplete', 'current-password webauthn');
   $('passkey-signin').addEventListener('click', passkeySignIn);
@@ -1013,6 +1139,8 @@ function showSignIn(message) {
   for (const d of document.querySelectorAll('dialog[open]')) d.close();
   passkeyError('');
   $('passkey-block').hidden = !passkeysSupported();
+  signInStep('password');
+  readyEnter(pwForm.elements.password);
   show('signin', 'signin-title');
   startConditional();
 }
@@ -1056,7 +1184,20 @@ function setRecovery(on) {
     input.setAttribute('maxlength', '6');
   }
   $('mfa-label').textContent = on ? 'Recovery code' : '6-digit code from your authenticator';
+  input.setAttribute('placeholder', on ? 'recovery code' : '6-digit code');
   $('mfa-toggle').textContent = on ? 'Use a 6-digit code' : 'Use a recovery code';
+  readyEnter(input);
+}
+
+function readyEnter(input) {
+  input.form.querySelector('.enter').classList.toggle('is-ready', Boolean(input.value.trim()));
+}
+
+function signInStep(step) {
+  $('signin-box-title').textContent = step === 'mfa' ? '2-STEP CODE' : 'SIGN IN';
+  $('signin-foot').textContent = step === 'mfa'
+    ? 'the code from your authenticator app, or a recovery code'
+    : 'a 6-digit code follows if 2-step is on';
 }
 
 function wireSignIn() {
@@ -1079,10 +1220,12 @@ function wireSignIn() {
     try {
       const r = await api('POST', '/api/login', { password });
       pwForm.elements.password.value = '';
+      readyEnter(pwForm.elements.password);
       if (r && r.next === 'mfa') {
         pwForm.hidden = true;
         $('passkey-block').hidden = true;
         mfaForm.hidden = false;
+        signInStep('mfa');
         $('signin-notice').hidden = true;
         setRecovery(false);
         formError(mfaForm, '');
@@ -1132,7 +1275,10 @@ function wireSignIn() {
     }
   });
 
+  const pwInput = $('signin-password');
+  pwInput.addEventListener('input', () => readyEnter(pwInput));
   codeInput.addEventListener('input', () => {
+    readyEnter(codeInput);
     if (codeInput.classList.contains('is-recovery')) return;
     const digits = codeInput.value.replace(/\D/g, '').slice(0, 6);
     if (digits !== codeInput.value) codeInput.value = digits;
@@ -1147,6 +1293,7 @@ function wireSignIn() {
   $('mfa-back').addEventListener('click', () => {
     mfaForm.hidden = true;
     pwForm.hidden = false;
+    signInStep('password');
     $('passkey-block').hidden = !passkeysSupported();
     formError(pwForm, '');
     pwForm.elements.password.focus();
@@ -1189,19 +1336,25 @@ async function signOut() {
 }
 
 // ---------- settings ----------
+// The main screen is boxed lists of rows, as the dashboard draws its panels; password, passkeys,
+// two-step verification, adding a computer and the full activity log open as detail screens.
+
+const known = { passkeys: null, sessions: null };
+let sub = null;
+
+const SUB_TITLES = {
+  password: 'PASSWORD',
+  passkeys: 'PASSKEYS',
+  mfa: '2-STEP',
+  device: 'ADD A COMPUTER',
+  activity: 'ACTIVITY',
+};
 
 function openSettings() {
-  mfaFlow = null;
-  $('device-token').hidden = true;
-  $('device-token').replaceChildren();
-  const pwForm = $('form-change-password');
-  pwForm.reset();
-  formError(pwForm, '');
-  formOk(pwForm, '');
   show('settings', 'settings-title');
   window.scrollTo(0, 0);
-  renderMfa();
-  refreshMe().then(renderMfa);
+  renderSignInRows();
+  refreshMe().then(renderSignInRows);
   loadPasskeys();
   loadSessions();
   loadDevices();
@@ -1209,85 +1362,175 @@ function openSettings() {
 }
 
 function closeSettings() {
-  mfaFlow = null;
-  $('device-token').replaceChildren();
-  $('device-token').hidden = true;
   enterList();
   $('open-settings').focus({ preventScroll: true });
 }
 
-function panelNote(text) { return h('p', { class: 'panel-note', text }); }
+function openSub(name, from) {
+  sub = { name, from };
+  for (const key of Object.keys(SUB_TITLES)) $(`sub-${key}`).hidden = key !== name;
+  const title = name === 'passkeys' && isApple() ? 'FACE ID' : SUB_TITLES[name];
+  fill($('sub-title'), h('span', { 'aria-hidden': 'true', text: '◆' }), ` ${title}`);
+  if (name === 'password') {
+    const form = $('form-change-password');
+    form.reset();
+    formError(form, '');
+    formOk(form, '');
+  }
+  if (name === 'device') {
+    const form = $('form-add-device');
+    form.reset();
+    form.hidden = false;
+    formError(form, '');
+    $('device-token').replaceChildren();
+    $('device-token').hidden = true;
+  }
+  if (name === 'mfa') {
+    mfaFlow = null;
+    renderMfa();
+  }
+  show('sub', 'sub-title');
+  window.scrollTo(0, 0);
+}
 
-function panelError(message, retry) {
-  return h('div', { class: 'panel-error', role: 'alert' },
+function closeSub() {
+  const from = sub && sub.from;
+  sub = null;
+  mfaFlow = null;
+  $('device-token').replaceChildren();
+  $('device-token').hidden = true;
+  show('settings');
+  renderSignInRows();
+  if (from) $(from)?.focus({ preventScroll: true });
+}
+
+function rowNote(text) { return h('li', { class: 'srow-note', text }); }
+
+function rowError(message, retry) {
+  return h('li', { class: 'srow-error', role: 'alert' },
     h('span', { text: message }),
-    h('button', { type: 'button', class: 'btn btn-secondary btn-small', text: 'Retry', on: { click: retry } }));
+    h('button', { type: 'button', class: 'mini', text: 'retry', on: { click: retry } }));
 }
 
 async function loadInto(panel, path, draw, retry) {
-  fill(panel, panelNote('Loading'));
+  if (!panel.children.length) fill(panel, rowNote('loading'));
   try {
     const data = await call('GET', path);
     draw(data || {});
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return;
-    fill(panel, panelError(e.message, retry));
+    fill(panel, rowError(e.message, retry));
   }
 }
 
-function deviceName(ua) {
+function srow({ title, sub: small, value, cls: extra }) {
+  return h('li', { class: cls('srow', extra) },
+    h('span', { class: 'k' }, title, small ? h('small', { text: small }) : null),
+    h('span', { class: 'v' }, value));
+}
+
+function plural(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
+
+function renderSignInRows() {
+  const keys = known.passkeys;
+  $('row-passkeys-n').textContent = keys ? String(keys.length) : '';
+  $('row-passkeys-sub').textContent = keys ? (keys.length ? keys.map((k) => k.name || 'passkey').join(', ') : 'none yet') : '';
+  const v = $('row-mfa-v');
+  if (mfa) {
+    v.textContent = mfa.on ? 'on' : 'off';
+    v.className = mfa.on ? 'on' : '';
+    $('row-mfa-sub').textContent = mfa.on ? plural(Number(mfa.recoveryLeft) || 0, 'recovery code left', 'recovery codes left') : 'a code after the password';
+  } else {
+    v.textContent = '';
+    $('row-mfa-sub').textContent = reachable ? '' : 'not available offline';
+  }
+  const parts = [];
+  if (mfa) parts.push(h('span', { class: mfa.on ? '' : 'is-zero' }, h('b', { class: mfa.on ? 'is-on' : '' }, glyph(mfa.on ? '●' : '○')), mfa.on ? '2-step on' : '2-step off'));
+  if (keys) parts.push(h('span', { class: keys.length ? '' : 'is-zero' }, glyph('□'), plural(keys.length, 'passkey', 'passkeys')));
+  if (known.sessions) parts.push(h('span', {}, glyph('○'), plural(known.sessions.length, 'session', 'sessions')));
+  fill($('settings-tally'), parts);
+}
+
+function deviceParts(ua) {
   const s = String(ua || '');
-  if (!s) return 'Unknown device';
-  if (/cockpit/i.test(s)) return 'cockpit';
+  if (/cockpit/i.test(s)) return { os: 'cockpit', browser: '' };
   const os = /iPhone/.test(s) ? 'iPhone' : /iPad/.test(s) ? 'iPad' : /Android/.test(s) ? 'Android'
     : /Macintosh|Mac OS X/.test(s) ? 'Mac' : /Windows/.test(s) ? 'Windows' : /Linux/.test(s) ? 'Linux' : '';
   const browser = /Edg\//.test(s) ? 'Edge' : /CriOS|Chrome\//.test(s) ? 'Chrome' : /FxiOS|Firefox\//.test(s) ? 'Firefox'
-    : /Safari\//.test(s) ? 'Safari' : /AppleWebKit/.test(s) && /iPhone|iPad/.test(s) ? 'Home Screen app' : '';
-  if (os && browser) return `${browser} on ${os}`;
-  return os || browser || s.slice(0, 60);
+    : /Safari\//.test(s) ? 'Safari' : /AppleWebKit/.test(s) && /iPhone|iPad/.test(s) ? 'home screen app' : '';
+  return { os, browser, raw: s };
+}
+
+function deviceName(ua) {
+  const { os, browser, raw } = deviceParts(ua);
+  if (!raw) return 'Unknown device';
+  if (os && browser) return browser === 'home screen app' ? `${os} app` : `${browser} on ${os}`;
+  return os || browser || raw.slice(0, 60);
+}
+
+function endOthers() {
+  return confirmSheet({
+    title: 'End all other sessions?',
+    text: 'Every other browser signed in to this list is signed out. Computers that sync keep their tokens.',
+    ok: 'End sessions',
+    action: async () => {
+      const r = await call('POST', '/api/sessions/end-others', {});
+      const n = Number(r && r.ended) || 0;
+      toast(n === 1 ? '1 session ended.' : `${n} sessions ended.`);
+      loadSessions();
+      loadAudit();
+    },
+  });
 }
 
 function loadSessions() {
   const panel = $('sessions-panel');
-  const endOthers = $('end-others');
-  endOthers.hidden = true;
   loadInto(panel, '/api/sessions', (data) => {
     const sessions = Array.isArray(data.sessions) ? data.sessions : [];
     sessions.sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
-    endOthers.hidden = !sessions.some((s) => !s.current);
+    known.sessions = sessions;
+    $('sessions-n').textContent = String(sessions.length);
+    renderSignInRows();
     if (!sessions.length) {
-      fill(panel, panelNote('No sessions.'));
+      fill(panel, rowNote('no sessions'));
       return;
     }
-    fill(panel, ...sessions.map((s) => {
-      const sub = [s.ip, `started ${fmtDateTime(s.started)}`, s.current ? null : `active ${ago(s.lastUsed)}`].filter(Boolean).join(' · ');
-      const end = s.current ? null : h('button', {
-        type: 'button',
-        class: 'btn btn-secondary btn-small',
-        text: 'End',
-        'aria-label': `End session: ${deviceName(s.agent)}`,
-        on: {
-          click: async (e) => {
-            const button = e.currentTarget;
-            busy(button, true);
-            try {
-              await call('DELETE', `/api/sessions/${encodeURIComponent(s.id)}`);
-              toast('Session ended.');
-              loadSessions();
-              loadAudit();
-            } catch (err) {
-              toast(err.message);
-              busy(button, false);
-            }
+    const rows = sessions.map((s) => {
+      const { os, browser } = deviceParts(s.agent);
+      const name = s.current && os ? `This ${os}` : deviceName(s.agent);
+      const small = s.current
+        ? [browser, 'now'].filter(Boolean).join(' · ')
+        : [`active ${agoShort(s.lastUsed)}`, s.ip].filter(Boolean).join(' · ');
+      const value = s.current
+        ? h('span', { class: 'here' }, glyph('●'), 'here')
+        : h('button', {
+          type: 'button',
+          class: 'mini',
+          text: 'end',
+          'aria-label': `End session: ${name}`,
+          on: {
+            click: async (e) => {
+              const button = e.currentTarget;
+              busy(button, true);
+              try {
+                await call('DELETE', `/api/sessions/${encodeURIComponent(s.id)}`);
+                toast('Session ended.');
+                loadSessions();
+                loadAudit();
+              } catch (err) {
+                toast(err.message);
+                busy(button, false);
+              }
+            },
           },
-        },
-      });
-      return h('div', { class: 'srow' },
-        h('div', { class: 'srow-main' },
-          h('span', { class: 'srow-title', title: s.agent || '' }, deviceName(s.agent), s.current ? h('span', { class: 'srow-tag', text: 'This device' }) : null),
-          h('span', { class: 'srow-sub', text: sub })),
-        end);
-    }));
+        });
+      return srow({ title: name, sub: small, value });
+    });
+    if (sessions.some((s) => !s.current)) {
+      rows.push(h('li', {}, h('button', { type: 'button', class: 'srow danger', id: 'end-others', on: { click: endOthers } },
+        h('span', { class: 'k', text: 'End all other sessions' }), h('span', { class: 'v' }))));
+    }
+    fill(panel, rows);
   }, loadSessions);
 }
 
@@ -1295,18 +1538,18 @@ function loadDevices() {
   const panel = $('devices-panel');
   loadInto(panel, '/api/devices', (data) => {
     const devices = Array.isArray(data.devices) ? data.devices : [];
+    $('devices-n').textContent = String(devices.length);
     if (!devices.length) {
-      fill(panel, panelNote('No computer syncs with this list yet. Add one below to get its token.'));
+      fill(panel);
       return;
     }
-    fill(panel, ...devices.map((d) => h('div', { class: 'srow' },
-      h('div', { class: 'srow-main' },
-        h('span', { class: 'srow-title', text: d.name || 'Unnamed' }),
-        h('span', { class: 'srow-sub', text: `added ${fmtDateTime(d.created)} · ${d.lastUsed ? `last synced ${ago(d.lastUsed)}` : 'never synced'}` })),
-      h('button', {
+    fill(panel, devices.map((d) => srow({
+      title: d.name || 'Unnamed',
+      sub: d.lastUsed ? `synced ${agoShort(d.lastUsed)}` : `never synced · added ${fmtDay(d.created)}`,
+      value: h('button', {
         type: 'button',
-        class: 'btn btn-danger-quiet btn-small',
-        text: 'Revoke',
+        class: 'mini danger',
+        text: 'revoke',
         'aria-label': `Revoke ${d.name || 'device'}`,
         on: {
           click: () => confirmSheet({
@@ -1321,60 +1564,82 @@ function loadDevices() {
             },
           }),
         },
-      }))));
+      }),
+    })));
   }, loadDevices);
 }
 
 function showDeviceToken(name, token) {
   const box = $('device-token');
   const cmd = `cockpit todo connect ${location.origin}`;
-  const copyToken = h('button', { type: 'button', class: 'btn btn-primary', text: 'Copy token' });
+  const copyToken = h('button', { type: 'button', class: 'btn btn-gold', text: 'Copy token' });
   copyToken.addEventListener('click', () => copyText(token, copyToken));
-  const copyCmd = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Copy command' });
+  const copyCmd = h('button', { type: 'button', class: 'btn btn-line', text: 'Copy command' });
   copyCmd.addEventListener('click', () => copyText(cmd, copyCmd));
   fill(box,
-    h('p', { class: 'status-line' }, h('strong', { text: `Token for ${name}` })),
+    h('p', { class: 'status-line' }, h('span', { class: 'on', 'aria-hidden': 'true', text: '●' }), `TOKEN FOR ${name.toUpperCase()}`),
     h('p', { class: 'callout', text: 'Copy it now: it is shown only once.' }),
-    h('p', { class: 'secret', text: token }),
-    h('div', { class: 'btn-row' }, copyToken),
+    h('div', { class: 'box field-box' }, h('p', { class: 'box-h' }, h('span', { text: 'TOKEN' })), h('p', { class: 'secret', text: token })),
+    copyToken,
     h('p', { class: 'hint', text: 'On that computer, run this, then paste the token when it asks:' }),
-    h('p', { class: 'cmd', text: cmd }),
+    h('div', { class: 'box field-box' }, h('p', { class: 'box-h' }, h('span', { text: 'COMMAND' })), h('p', { class: 'cmd', text: cmd })),
     h('div', { class: 'btn-row' }, copyCmd,
-      h('button', {
-        type: 'button',
-        class: 'btn btn-secondary',
-        text: 'Done',
-        on: { click: () => { box.replaceChildren(); box.hidden = true; } },
-      })),
+      h('button', { type: 'button', class: 'btn btn-line', text: 'Done', on: { click: closeSub } })),
   );
+  $('form-add-device').hidden = true;
   box.hidden = false;
-  box.scrollIntoView({ block: 'nearest', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
 }
 
-function auditDetails(details) {
-  if (details === null || details === undefined || details === '') return '';
-  if (typeof details === 'string') return details;
-  if (typeof details === 'object') {
-    return Object.entries(details).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ');
+// auditTitle names an audit event in words (the server writes keys such as login_ok).
+function auditTitle(ev) {
+  const d = ev.details && typeof ev.details === 'object' ? ev.details : {};
+  const count = Number(d.count) || 0;
+  switch (ev.event) {
+    case 'login_ok': return `signed in${d.with ? ` · ${d.with}` : ''}`;
+    case 'login_fail': return `sign-in refused${d.reason ? ` · ${d.reason}` : ''}`;
+    case 'locked': return 'locked after wrong passwords';
+    case 'logout': return 'signed out';
+    case 'password_changed': return 'password changed';
+    case 'reauth_fail': return 'wrong password in settings';
+    case 'sessions_revoked': return count === 1 ? 'session ended' : `${count || ''} sessions ended`.trim();
+    case 'mfa_on': return '2-step turned on';
+    case 'mfa_off': return '2-step turned off';
+    case 'device_added': return `computer added${d.name ? ` · ${d.name}` : ''}`;
+    case 'device_revoked': return `computer revoked${d.name ? ` · ${d.name}` : ''}`;
+    case 'passkey_added': return `passkey added${d.passkey ? ` · ${d.passkey}` : ''}`;
+    case 'passkey_removed': return `passkey removed${d.passkey ? ` · ${d.passkey}` : ''}`;
+    default: return String(ev.event || 'event').replace(/[_.]+/g, ' ');
   }
-  return String(details);
+}
+
+function auditRow(ev, now) {
+  const { os, browser } = deviceParts(ev.agent);
+  const agent = ev.agent === 'cockpit-todo-server' ? 'server command line' : (browser && browser !== 'home screen app' ? `${browser} on ${os}` : os || browser);
+  const at = validTime(ev.at);
+  return srow({
+    title: auditTitle(ev),
+    sub: agent || (ev.ip !== 'server' ? ev.ip : ''),
+    value: h('time', { datetime: ev.at || '', text: at ? (dayDiff(at, now) === 0 ? timeFmt.format(at) : fmtDay(ev.at)) : '' }),
+    cls: 'log',
+  });
 }
 
 function loadAudit() {
-  const panel = $('audit-panel');
-  loadInto(panel, '/api/audit', (data) => {
+  const preview = $('activity-preview');
+  const full = $('audit-panel');
+  loadInto(preview, '/api/audit', (data) => {
     const events = Array.isArray(data.events) ? data.events : [];
+    const now = new Date();
+    const today = events.filter((ev) => { const at = validTime(ev.at); return at && dayDiff(at, now) === 0; }).length;
+    $('activity-n').textContent = today ? `${today} today` : String(events.length);
+    $('audit-n').textContent = String(events.length);
     if (!events.length) {
-      fill(panel, panelNote('No activity yet.'));
+      fill(preview, rowNote('no activity yet'));
+      fill(full, rowNote('no activity yet'));
       return;
     }
-    fill(panel, ...events.map((ev) => {
-      const sub = [ev.ip, auditDetails(ev.details)].filter(Boolean).join(' · ');
-      return h('div', { class: 'audit-row' },
-        h('span', { class: 'audit-event', text: ev.event || '' }),
-        h('time', { class: 'audit-time', datetime: ev.at || '', text: fmtDateTime(ev.at) }),
-        sub ? h('span', { class: 'audit-sub', text: sub }) : null);
-    }));
+    fill(preview, events.slice(0, 3).map((ev) => auditRow(ev, now)));
+    fill(full, events.map((ev) => auditRow(ev, now)));
   }, loadAudit);
 }
 
@@ -1382,18 +1647,20 @@ function loadPasskeys() {
   const panel = $('passkeys-panel');
   loadInto(panel, '/api/passkeys', (data) => {
     const keys = Array.isArray(data.passkeys) ? data.passkeys : [];
+    known.passkeys = keys;
+    $('passkeys-n').textContent = String(keys.length);
+    renderSignInRows();
     if (!keys.length) {
-      panel.replaceChildren(panelNote('No passkeys yet.'));
+      fill(panel, rowNote('No passkeys yet.'));
       return;
     }
-    panel.replaceChildren(...keys.map((k) => h('div', { class: 'srow' },
-      h('div', { class: 'srow-main' },
-        h('span', { class: 'srow-title', text: k.name || 'Passkey' }),
-        h('span', { class: 'srow-sub', text: `added ${fmtDateTime(k.created)} · ${k.lastUsed ? `last used ${ago(k.lastUsed)}` : 'never used'}` })),
-      h('button', {
+    fill(panel, keys.map((k) => srow({
+      title: k.name || 'Passkey',
+      sub: `added ${fmtDay(k.created)} · ${k.lastUsed ? `used ${agoShort(k.lastUsed)}` : 'never used'}`,
+      value: h('button', {
         type: 'button',
-        class: 'btn btn-danger-quiet btn-small',
-        text: 'Remove',
+        class: 'mini danger',
+        text: 'remove',
         'aria-label': `Remove passkey ${k.name || ''}`.trim(),
         on: {
           click: () => confirmSheet({
@@ -1408,7 +1675,8 @@ function loadPasskeys() {
             },
           }),
         },
-      }))));
+      }),
+    })));
   }, loadPasskeys);
 }
 
@@ -1444,7 +1712,7 @@ function setupPasskeySettings() {
     return;
   }
   const label = isApple() ? 'Add Face ID' : 'Add a passkey';
-  button.textContent = label;
+  $('add-passkey-label').textContent = label;
   button.addEventListener('click', () => confirmSheet({
     title: label,
     text: 'Enter your password to add a passkey for this device.',
@@ -1460,22 +1728,27 @@ function groupSecret(secret) {
   return (String(secret).replace(/\s+/g, '').match(/.{1,4}/g) || []).join(' ');
 }
 
+function fieldBox(label, child) {
+  return h('div', { class: 'box field-box' }, h('p', { class: 'box-h' }, h('span', { text: label })), child);
+}
+
 function renderMfa() {
   const panel = $('mfa-panel');
-  panel.classList.add('stack');
 
   if (mfaFlow && mfaFlow.stage === 'codes') {
     const codes = mfaFlow.codes;
-    const copyAll = h('button', { type: 'button', class: 'btn btn-primary', text: 'Copy all' });
+    const copyAll = h('button', { type: 'button', class: 'btn btn-gold', text: 'Copy all' });
     copyAll.addEventListener('click', () => copyText(codes.join('\n'), copyAll));
-    fill(panel, 
-      h('p', { class: 'status-line' }, h('span', { class: 'status-dot is-on', 'aria-hidden': 'true' }), h('strong', { text: 'Two-step verification is on' })),
+    fill(panel,
+      h('p', { class: 'status-line' }, h('span', { class: 'on', 'aria-hidden': 'true', text: '●' }), '2-STEP IS ON'),
       h('p', { class: 'callout', text: 'Save these recovery codes now, in your password manager or on paper. Each one signs you in once without the authenticator. They are not shown again.' }),
-      h('ul', { class: 'codes', 'aria-label': 'Recovery codes' }, codes.map((c) => h('li', { text: c }))),
+      h('div', { class: 'box' },
+        h('p', { class: 'box-h' }, h('span', { text: 'RECOVERY CODES' }), h('span', { class: 'n', text: String(codes.length) })),
+        h('ul', { class: 'codes', 'aria-label': 'Recovery codes' }, codes.map((c) => h('li', { text: c })))),
       h('div', { class: 'btn-row' }, copyAll,
         h('button', {
           type: 'button',
-          class: 'btn btn-secondary',
+          class: 'btn btn-line',
           text: "I've saved them",
           on: { click: async () => { mfaFlow = null; await refreshMe(); renderMfa(); loadAudit(); } },
         })),
@@ -1484,18 +1757,18 @@ function renderMfa() {
   }
 
   if (mfaFlow && mfaFlow.stage === 'setup') {
-    const copyKey = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Copy key' });
+    const copyKey = h('button', { type: 'button', class: 'btn btn-line', text: 'Copy key' });
     copyKey.addEventListener('click', () => copyText(String(mfaFlow.secret).replace(/\s+/g, ''), copyKey));
     const uri = String(mfaFlow.uri || '');
-    const addLink = /^otpauth:\/\//i.test(uri) ? h('a', { class: 'btn btn-primary', href: uri, text: 'Add to Passwords or an authenticator' }) : null;
+    const addLink = /^otpauth:\/\//i.test(uri) ? h('a', { class: 'btn btn-gold', href: uri, text: 'Add to Passwords' }) : null;
     const form = h('form', { method: 'post', class: 'stack', novalidate: true },
-      h('label', { class: 'field' },
-        h('span', { class: 'field-label', text: 'Then enter the 6-digit code it shows' }),
-        h('input', { type: 'text', name: 'code', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9]*', maxlength: '6', enterkeyhint: 'done', autocapitalize: 'off', spellcheck: 'false' })),
+      h('label', { class: 'box field-box' },
+        h('span', { class: 'box-h' }, h('span', { text: 'CODE IT SHOWS' })),
+        h('input', { type: 'text', name: 'code', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9]*', maxlength: '6', enterkeyhint: 'done', autocapitalize: 'off', spellcheck: 'false', placeholder: '6 digits' })),
       h('p', { class: 'form-error', role: 'alert', hidden: true }),
       h('div', { class: 'btn-row' },
-        h('button', { type: 'submit', class: 'btn btn-primary', text: 'Turn on' }),
-        h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel', on: { click: () => { mfaFlow = null; renderMfa(); } } })));
+        h('button', { type: 'submit', class: 'btn btn-gold', text: 'Turn on' }),
+        h('button', { type: 'button', class: 'btn btn-line', text: 'Cancel', on: { click: () => { mfaFlow = null; renderMfa(); } } })));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const code = form.elements.code.value.replace(/\D/g, '');
@@ -1515,9 +1788,9 @@ function renderMfa() {
         busy(button, false);
       }
     });
-    fill(panel, 
-      h('p', { class: 'quiet', text: 'Add this key to Passwords or your authenticator app. On this iPhone, the button below does it for you.' }),
-      h('p', { class: 'secret', 'aria-label': 'Setup key', text: groupSecret(mfaFlow.secret) }),
+    fill(panel,
+      h('p', { class: 'hint', text: 'Add this key to Passwords or your authenticator app. On this iPhone, Add to Passwords does it for you.' }),
+      fieldBox('SETUP KEY', h('p', { class: 'secret', 'aria-label': 'Setup key', text: groupSecret(mfaFlow.secret) })),
       h('div', { class: 'btn-row' }, addLink, copyKey),
       form,
     );
@@ -1525,20 +1798,24 @@ function renderMfa() {
   }
 
   if (!mfa) {
-    fill(panel, panelNote(reachable ? 'Loading' : 'Not available offline.'));
+    fill(panel, h('p', { class: 'hint', text: reachable ? 'loading' : 'Not available offline.' }));
     return;
   }
 
+  const statusBox = (on, extra) => h('div', { class: 'box' },
+    h('p', { class: 'box-h' }, h('span', { text: 'TWO-STEP VERIFICATION' })),
+    h('ul', { class: 'srows' },
+      srow({ title: 'Status', sub: on ? 'a code after the password' : 'the password alone signs in', value: h('span', { class: on ? 'on' : '', text: on ? 'on' : 'off' }) }),
+      extra));
+
   if (mfa.on) {
     const left = Number(mfa.recoveryLeft) || 0;
-    fill(panel, 
-      h('p', { class: 'status-line' }, h('span', { class: 'status-dot is-on', 'aria-hidden': 'true' }), h('strong', { text: 'On' })),
-      h('p', { class: 'quiet', text: `Signing in asks for a code from your authenticator. ${left === 1 ? '1 recovery code' : `${left} recovery codes`} left.` }),
+    fill(panel,
+      statusBox(true, srow({ title: 'Recovery codes', sub: 'each signs in once without the phone', value: `${left} left` })),
       left <= 2 ? h('p', { class: 'callout', text: 'Few recovery codes left. Turning two-step verification off and on again gives a new set.' }) : null,
-      h('div', { class: 'btn-row' }, h('button', {
+      h('div', { class: 'box box-plain' }, h('ul', { class: 'srows' }, h('li', {}, h('button', {
         type: 'button',
-        class: 'btn btn-danger-quiet',
-        text: 'Turn off',
+        class: 'srow danger',
         on: {
           click: () => confirmSheet({
             title: 'Turn off two-step verification?',
@@ -1551,12 +1828,12 @@ function renderMfa() {
             },
           }),
         },
-      })),
+      }, h('span', { class: 'k', text: 'Turn off' }), h('span', { class: 'v' }))))),
     );
     return;
   }
 
-  const start = h('button', { type: 'button', class: 'btn btn-primary', text: mfa.pending ? 'Start again' : 'Turn on' });
+  const start = h('button', { type: 'button', class: 'btn btn-gold', text: mfa.pending ? 'Start again' : 'Turn on' });
   start.addEventListener('click', async () => {
     busy(start, true);
     try {
@@ -1568,11 +1845,10 @@ function renderMfa() {
       busy(start, false);
     }
   });
-  fill(panel, 
-    h('p', { class: 'status-line' }, h('span', { class: 'status-dot', 'aria-hidden': 'true' }), h('strong', { text: 'Off' })),
-    h('p', { class: 'quiet', text: 'Ask for a 6-digit code from an authenticator after the password.' }),
-    mfa.pending ? h('p', { class: 'hint', text: 'A setup was started and not finished.' }) : null,
-    h('div', { class: 'btn-row' }, start),
+  fill(panel,
+    statusBox(false, null),
+    h('p', { class: 'hint', text: mfa.pending ? 'A setup was started and not finished.' : 'Ask for a 6-digit code from an authenticator app after the password.' }),
+    start,
   );
 }
 
@@ -1580,20 +1856,13 @@ function wireSettings() {
   setupPasskeySettings();
   $('open-settings').addEventListener('click', openSettings);
   $('close-settings').addEventListener('click', closeSettings);
+  $('close-sub').addEventListener('click', closeSub);
   $('sign-out').addEventListener('click', signOut);
-
-  $('end-others').addEventListener('click', () => confirmSheet({
-    title: 'End all other sessions?',
-    text: 'Every other browser signed in to this list is signed out. Computers that sync keep their tokens.',
-    ok: 'End sessions',
-    action: async () => {
-      const r = await call('POST', '/api/sessions/end-others', {});
-      const n = Number(r && r.ended) || 0;
-      toast(n === 1 ? '1 session ended.' : `${n} sessions ended.`);
-      loadSessions();
-      loadAudit();
-    },
-  }));
+  $('row-password').addEventListener('click', () => openSub('password', 'row-password'));
+  $('row-passkeys').addEventListener('click', () => openSub('passkeys', 'row-passkeys'));
+  $('row-mfa').addEventListener('click', () => openSub('mfa', 'row-mfa'));
+  $('row-add-device').addEventListener('click', () => openSub('device', 'row-add-device'));
+  $('row-activity').addEventListener('click', () => openSub('activity', 'row-activity'));
 
   const pwForm = $('form-change-password');
   pwForm.addEventListener('submit', async (e) => {

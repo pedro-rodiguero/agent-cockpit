@@ -21,198 +21,250 @@
 </head>
 <body>
 
-<main id="view-loading" class="view view-center">
-  <p class="quiet">Loading</p>
+<main id="view-loading" class="view view-signin">
+  <p class="brand"><span aria-hidden="true">◆</span> AGENT COCKPIT <span class="brand-sub">· to do</span></p>
+  <div class="signin-hero"><p class="hero-sub">loading</p></div>
 </main>
 
-<main id="view-signin" class="view view-center" hidden>
-  <div class="signin">
-    <h1 class="signin-title" id="signin-title" tabindex="-1">To do</h1>
-    <p class="quiet" id="signin-sub">Sign in to see your list.</p>
-    <p class="notice" id="signin-notice" hidden></p>
+<main id="view-signin" class="view view-signin" hidden>
+  <p class="brand"><span aria-hidden="true">◆</span> AGENT COCKPIT <span class="brand-sub">· to do</span></p>
+  <div class="signin-hero">
+    <h1 class="hero-title" id="signin-title" tabindex="-1">To do</h1>
+    <p class="hero-sub" id="signin-sub">Sign in to see your list.</p>
+    <p class="notice" id="signin-notice" role="status" hidden></p>
+  </div>
+  <div class="grow"></div>
 
-    <div id="passkey-block" class="stack passkey-block" hidden>
-      <button type="button" class="btn btn-primary btn-block" id="passkey-signin">Sign in with a passkey</button>
+  <section class="box signin-box" aria-labelledby="signin-box-title">
+    <h2 class="box-h"><span id="signin-box-title">SIGN IN</span><span class="n" id="signin-device"></span></h2>
+
+    <div id="passkey-block" class="passkey-block" hidden>
+      <button type="button" class="btn btn-gold" id="passkey-signin">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9v1.5M15 9v1.5M12 9v4h-1M9.5 16c1.5 1.2 3.5 1.2 5 0"/></svg>
+        <span id="passkey-label">Sign in with a passkey</span>
+      </button>
       <p class="form-error" id="passkey-error" role="alert" hidden></p>
-      <p class="or-divider" aria-hidden="true"><span>or use your password</span></p>
+      <p class="or" aria-hidden="true">OR</p>
     </div>
 
-    <form method="post" id="form-password" class="stack" novalidate>
+    <form method="post" id="form-password" class="prompt-form" novalidate>
       <input type="text" name="username" value="todo" autocomplete="username" id="signin-username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
-      <label class="field">
-        <span class="field-label">Password</span>
-        <input type="password" name="password" id="signin-password" autocomplete="current-password" required minlength="1" enterkeyhint="go">
-      </label>
+      <div class="pw">
+        <span class="caret" aria-hidden="true">›</span>
+        <label for="signin-password" class="visually-hidden">Password</label>
+        <input type="password" name="password" id="signin-password" placeholder="password" autocomplete="current-password" required enterkeyhint="go">
+        <button type="submit" class="enter" aria-label="Sign in"><span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 5v7a3 3 0 0 1-3 3H6m4-4-4 4 4 4"/></svg></span></button>
+      </div>
       <p class="form-error" role="alert" hidden></p>
-      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
     </form>
 
-    <form method="post" id="form-mfa" class="stack" novalidate hidden>
-      <label class="field">
-        <span class="field-label" id="mfa-label">6-digit code from your authenticator</span>
-        <input type="text" name="code" id="signin-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false" required enterkeyhint="go">
-      </label>
+    <form method="post" id="form-mfa" class="prompt-form" novalidate hidden>
+      <div class="pw">
+        <span class="caret" aria-hidden="true">›</span>
+        <label for="signin-code" class="visually-hidden" id="mfa-label">6-digit code from your authenticator</label>
+        <input type="text" name="code" id="signin-code" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false" required enterkeyhint="go">
+        <button type="submit" class="enter" aria-label="Continue"><span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 5v7a3 3 0 0 1-3 3H6m4-4-4 4 4 4"/></svg></span></button>
+      </div>
       <p class="form-error" role="alert" hidden></p>
-      <button type="submit" class="btn btn-primary btn-block">Continue</button>
       <div class="row-between">
-        <button type="button" class="btn-link" id="mfa-toggle">Use a recovery code</button>
-        <button type="button" class="btn-link" id="mfa-back">Back</button>
+        <button type="button" class="tlink" id="mfa-toggle">Use a recovery code</button>
+        <button type="button" class="tlink" id="mfa-back">Back</button>
       </div>
     </form>
-  </div>
+  </section>
+  <p class="signin-foot" id="signin-foot">a 6-digit code follows if 2-step is on</p>
 </main>
 
-<main id="view-offline-empty" class="view view-center" hidden>
-  <div class="signin">
-    <h1 class="signin-title">You're offline</h1>
-    <p class="quiet">This device has no saved copy of the list yet. It appears here once you are online and signed in.</p>
-    <button type="button" class="btn btn-secondary btn-block" id="retry-connect">Try again</button>
+<main id="view-offline-empty" class="view view-signin" hidden>
+  <p class="brand"><span aria-hidden="true">◆</span> AGENT COCKPIT <span class="brand-sub">· to do</span></p>
+  <div class="signin-hero">
+    <h1 class="hero-title">Offline</h1>
+    <p class="hero-sub">This device has no saved copy of the list yet. It appears once you are online and signed in.</p>
   </div>
+  <div class="grow"></div>
+  <button type="button" class="btn btn-quiet" id="retry-connect">Try again</button>
 </main>
 
-<main id="view-list" class="view view-list" hidden>
-  <header class="topbar">
-    <h1 class="title" id="list-title" tabindex="-1">To do</h1>
-    <span class="title-count" id="open-count"></span>
+<main id="view-list" class="view view-app" hidden>
+  <header class="strip">
+    <h1 class="brand" id="list-title" tabindex="-1"><span aria-hidden="true">◆</span> TO DO</h1>
+    <span class="grow"></span>
+    <span class="strip-meta" id="sync-meta"></span>
     <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
     </button>
   </header>
+  <p class="tally" id="tally"></p>
   <p class="net-note" id="net-note" role="status" hidden></p>
 
-  <div class="list-body">
-    <div id="tasks" class="tasks" aria-live="off"></div>
+  <div class="scroll list-body">
+    <div id="tasks" class="tasks"></div>
     <details id="done" class="done" hidden>
-      <summary><span>Done this week</span><span class="group-count" id="done-count"></span></summary>
-      <ul class="task-list" id="done-list"></ul>
+      <summary class="done-line"><span class="done-label"><span aria-hidden="true">○</span> DONE THIS WEEK</span><span class="n" id="done-count"></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg></summary>
+      <div class="box done-box"><ul class="rows" id="done-list"></ul></div>
     </details>
   </div>
 
-  <form method="post" id="add-form" class="addbar" autocomplete="off" novalidate>
-    <div class="chips" id="chips" role="group" aria-label="Insert a group or a date" hidden></div>
-    <div class="addrow">
+  <form method="post" id="add-form" class="prompt-wrap" autocomplete="off" novalidate>
+    <div class="accessory" id="chips" hidden>
+      <p class="parse" id="add-parse" aria-live="polite"></p>
+      <div class="keys" id="keys" role="group" aria-label="Insert a group or a date"></div>
+    </div>
+    <div class="prompt">
+      <span class="caret" aria-hidden="true">›</span>
       <label for="add-input" class="visually-hidden">New task</label>
-      <input type="text" id="add-input" name="line" placeholder="call the venue #Personal @tomorrow" enterkeyhint="send" autocapitalize="sentences" maxlength="500">
-      <button type="submit" class="add-btn" aria-label="Add task">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
-      </button>
+      <input type="text" id="add-input" name="line" placeholder="new task" enterkeyhint="send" autocapitalize="sentences" maxlength="500">
+      <button type="submit" class="enter add-btn" aria-label="Add task"><span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 5v7a3 3 0 0 1-3 3H6m4-4-4 4 4 4"/></svg></span></button>
     </div>
   </form>
-  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </main>
 
-<main id="view-settings" class="view view-settings" hidden>
-  <header class="topbar topbar-settings">
-    <button type="button" class="back-btn" id="close-settings">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m15 5-7 7 7 7"/></svg>
-      <span>List</span>
-    </button>
-    <h1 class="title title-center" id="settings-title" tabindex="-1">Settings</h1>
-    <span class="topbar-spacer"></span>
+<main id="view-settings" class="view view-app" hidden>
+  <header class="strip strip-nav">
+    <button type="button" class="back" id="close-settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5-7 7 7 7"/></svg>LIST</button>
+    <h1 class="brand brand-center" id="settings-title" tabindex="-1"><span aria-hidden="true">◆</span> SETTINGS</h1>
+    <span class="nav-spacer"></span>
+  </header>
+  <p class="tally" id="settings-tally"></p>
+
+  <div class="scroll">
+    <section class="box" aria-labelledby="h-signin">
+      <h2 class="box-h"><span id="h-signin">SIGN-IN</span><span class="n">3</span></h2>
+      <ul class="srows">
+        <li><button type="button" class="srow" id="row-password"><span class="k">Password<small>needed to add a passkey</small></span><span class="v"><svg class="go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span></button></li>
+        <li><button type="button" class="srow" id="row-passkeys"><span class="k" id="row-passkeys-k">Face ID and passkeys<small id="row-passkeys-sub"></small></span><span class="v"><span id="row-passkeys-n"></span><svg class="go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span></button></li>
+        <li><button type="button" class="srow" id="row-mfa"><span class="k">Two-step verification<small id="row-mfa-sub"></small></span><span class="v"><span id="row-mfa-v"></span><svg class="go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span></button></li>
+      </ul>
+    </section>
+
+    <section class="box" aria-labelledby="h-sessions">
+      <h2 class="box-h"><span id="h-sessions">SESSIONS</span><span class="n" id="sessions-n"></span></h2>
+      <ul class="srows" id="sessions-panel"></ul>
+    </section>
+
+    <section class="box" aria-labelledby="h-devices">
+      <h2 class="box-h"><span id="h-devices">COMPUTERS THAT SYNC</span><span class="n" id="devices-n"></span></h2>
+      <ul class="srows" id="devices-panel"></ul>
+      <ul class="srows srows-tail">
+        <li><button type="button" class="srow add" id="row-add-device"><span class="k"><i aria-hidden="true">+</i>Add a computer</span><span class="v"></span></button></li>
+      </ul>
+    </section>
+
+    <section class="box" aria-labelledby="h-activity">
+      <h2 class="box-h"><span id="h-activity">ACTIVITY</span><span class="n" id="activity-n"></span></h2>
+      <ul class="srows" id="activity-preview"></ul>
+      <ul class="srows srows-tail">
+        <li><button type="button" class="srow" id="row-activity"><span class="k k-quiet">All activity</span><span class="v"><svg class="go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span></button></li>
+      </ul>
+    </section>
+
+    <section class="box box-plain">
+      <ul class="srows">
+        <li><button type="button" class="srow danger" id="sign-out"><span class="k">Sign out</span><span class="v"></span></button></li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<main id="view-sub" class="view view-app" hidden>
+  <header class="strip strip-nav">
+    <button type="button" class="back" id="close-sub"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5-7 7 7 7"/></svg>SETTINGS</button>
+    <h1 class="brand brand-center" id="sub-title" tabindex="-1"></h1>
+    <span class="nav-spacer"></span>
   </header>
 
-  <div class="settings">
-    <section class="sgroup" aria-labelledby="h-password">
-      <h2 class="sgroup-title" id="h-password">Password</h2>
-      <form method="post" id="form-change-password" class="panel stack" novalidate>
+  <div class="scroll">
+    <section class="sub" id="sub-password" hidden>
+      <form method="post" id="form-change-password" class="stack" novalidate>
         <input type="text" name="username" value="todo" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
-        <label class="field"><span class="field-label">Current password</span>
+        <label class="box field-box"><span class="box-h"><span>CURRENT</span></span>
           <input type="password" name="current" autocomplete="current-password" required></label>
-        <label class="field"><span class="field-label">New password</span>
-          <input type="password" name="new" autocomplete="new-password" required minlength="12" maxlength="128" aria-describedby="pw-hint"></label>
-        <label class="field"><span class="field-label">Confirm new password</span>
+        <label class="box field-box"><span class="box-h"><span>NEW</span><span class="n">12–128 chars</span></span>
+          <input type="password" name="new" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+        <label class="box field-box"><span class="box-h"><span>CONFIRM NEW</span></span>
           <input type="password" name="confirm" autocomplete="new-password" required></label>
-        <p class="hint" id="pw-hint">12 to 128 characters. Changing it signs out every other session.</p>
+        <p class="hint">Changing it signs out every other session.</p>
         <p class="form-error" role="alert" hidden></p>
         <p class="form-ok" role="status" hidden></p>
-        <button type="submit" class="btn btn-secondary">Change password</button>
+        <button type="submit" class="btn btn-gold">Change password</button>
       </form>
     </section>
 
-    <section class="sgroup" aria-labelledby="h-passkeys" id="passkeys-section">
-      <h2 class="sgroup-title" id="h-passkeys">Face ID and passkeys</h2>
-      <div class="panel panel-list" id="passkeys-panel"></div>
-      <div class="panel stack">
-        <p class="hint" id="passkey-add-hint">Sign in with your face or fingerprint: it replaces both the password and the 6-digit code.</p>
-        <button type="button" class="btn btn-secondary" id="add-passkey">Add a passkey</button>
+    <section class="sub" id="sub-passkeys" hidden>
+      <div class="box">
+        <h2 class="box-h"><span>PASSKEYS</span><span class="n" id="passkeys-n"></span></h2>
+        <ul class="srows" id="passkeys-panel"></ul>
+        <ul class="srows srows-tail">
+          <li><button type="button" class="srow add" id="add-passkey"><span class="k"><i aria-hidden="true">+</i><span id="add-passkey-label">Add a passkey</span></span><span class="v"></span></button></li>
+        </ul>
       </div>
+      <p class="hint" id="passkey-add-hint">A passkey signs in with your face or fingerprint: it replaces both the password and the 6-digit code.</p>
     </section>
 
-    <section class="sgroup" aria-labelledby="h-mfa">
-      <h2 class="sgroup-title" id="h-mfa">Two-step verification</h2>
-      <div class="panel" id="mfa-panel"></div>
+    <section class="sub" id="sub-mfa" hidden>
+      <div class="stack" id="mfa-panel"></div>
     </section>
 
-    <section class="sgroup" aria-labelledby="h-sessions">
-      <div class="sgroup-head">
-        <h2 class="sgroup-title" id="h-sessions">Sessions</h2>
-        <button type="button" class="btn-link btn-link-small" id="end-others" hidden>End all others</button>
-      </div>
-      <div class="panel panel-list" id="sessions-panel"></div>
-    </section>
-
-    <section class="sgroup" aria-labelledby="h-devices">
-      <h2 class="sgroup-title" id="h-devices">Computers that sync</h2>
-      <div class="panel panel-list" id="devices-panel"></div>
-      <form method="post" id="form-add-device" class="panel stack" novalidate>
-        <label class="field"><span class="field-label">Add a computer</span>
-          <input type="text" name="name" placeholder="Name, like Work Mac" autocomplete="off" autocapitalize="words" maxlength="80" required></label>
+    <section class="sub" id="sub-device" hidden>
+      <form method="post" id="form-add-device" class="stack" novalidate>
+        <label class="box field-box"><span class="box-h"><span>NAME</span></span>
+          <input type="text" name="name" placeholder="Work Mac" autocomplete="off" autocapitalize="words" maxlength="80" required></label>
+        <p class="hint">The computer syncs with a token shown once. You can revoke it here at any time.</p>
         <p class="form-error" role="alert" hidden></p>
-        <button type="submit" class="btn btn-secondary">Create sync token</button>
+        <button type="submit" class="btn btn-gold">Create sync token</button>
       </form>
-      <div class="panel stack token-panel" id="device-token" hidden></div>
+      <div class="stack" id="device-token" hidden></div>
     </section>
 
-    <section class="sgroup" aria-labelledby="h-activity">
-      <h2 class="sgroup-title" id="h-activity">Activity</h2>
-      <div class="panel panel-list" id="audit-panel"></div>
-    </section>
-
-    <section class="sgroup">
-      <div class="panel">
-        <button type="button" class="btn btn-danger-quiet btn-block" id="sign-out">Sign out</button>
+    <section class="sub" id="sub-activity" hidden>
+      <div class="box">
+        <h2 class="box-h"><span>LAST 100 EVENTS</span><span class="n" id="audit-n"></span></h2>
+        <ul class="srows" id="audit-panel"></ul>
       </div>
     </section>
   </div>
 </main>
 
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
 <dialog id="edit-sheet" class="sheet" aria-labelledby="edit-title">
-  <form method="post" id="form-edit" class="sheet-body stack" novalidate>
-    <div class="sheet-grabber" aria-hidden="true"></div>
-    <h2 class="sheet-title" id="edit-title">Edit task</h2>
-    <label class="field">
-      <span class="visually-hidden">Task</span>
-      <textarea name="line" id="edit-line" rows="3" enterkeyhint="done" autocapitalize="sentences" maxlength="500" aria-describedby="edit-hint"></textarea>
-    </label>
-    <p class="hint" id="edit-hint">#Group files it, @date sets the due date: today, tomorrow, 25/12, 2027-01-31.</p>
-    <p class="form-error" role="alert" hidden></p>
-    <div class="sheet-actions">
-      <button type="button" class="btn btn-danger-quiet" id="edit-delete">Delete</button>
-      <span class="grow"></span>
-      <button type="button" class="btn btn-secondary" id="edit-cancel">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save</button>
+  <form method="post" id="form-edit" novalidate>
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-bar">
+      <button type="button" class="tbtn" id="edit-cancel">Cancel</button>
+      <h2 id="edit-title">EDIT TASK</h2>
+      <button type="submit" class="tbtn primary">Save</button>
+    </div>
+    <div class="sheet-body">
+      <div class="box field-box field-line">
+        <p class="box-h"><span>LINE</span><span class="n" id="edit-tokens"></span></p>
+        <label for="edit-line" class="visually-hidden">Task</label>
+        <textarea name="line" id="edit-line" rows="3" enterkeyhint="done" autocapitalize="sentences" maxlength="500" aria-describedby="edit-hint"></textarea>
+      </div>
+      <p class="parse" id="edit-parse"></p>
+      <p class="hint" id="edit-hint">#group files it · @date: today, tomorrow, 25/12, 2027-01-31</p>
+      <p class="form-error" role="alert" hidden></p>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="del" id="edit-delete"><i aria-hidden="true">✕</i>Delete task</button>
+      <span class="meta" id="edit-meta"></span>
     </div>
   </form>
 </dialog>
 
 <dialog id="confirm-sheet" class="sheet" aria-labelledby="confirm-title">
-  <form method="post" id="form-confirm" class="sheet-body stack" novalidate>
-    <div class="sheet-grabber" aria-hidden="true"></div>
-    <h2 class="sheet-title" id="confirm-title"></h2>
-    <p class="quiet" id="confirm-text"></p>
-    <label class="field" id="confirm-name-field" hidden>
-      <span class="field-label">Name</span>
-      <input type="text" name="name" autocomplete="off" autocapitalize="words" maxlength="80">
-    </label>
-    <label class="field" id="confirm-password-field" hidden>
-      <span class="field-label">Password</span>
-      <input type="password" name="password" autocomplete="current-password">
-    </label>
-    <p class="form-error" role="alert" hidden></p>
-    <div class="sheet-actions">
-      <span class="grow"></span>
-      <button type="button" class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+  <form method="post" id="form-confirm" novalidate>
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-body confirm-body">
+      <h2 class="confirm-title" id="confirm-title"></h2>
+      <p class="confirm-text" id="confirm-text"></p>
+      <label class="box field-box" id="confirm-name-field" hidden><span class="box-h"><span>NAME</span></span>
+        <input type="text" name="name" autocomplete="off" autocapitalize="words" maxlength="80"></label>
+      <label class="box field-box" id="confirm-password-field" hidden><span class="box-h"><span>PASSWORD</span></span>
+        <input type="password" name="password" autocomplete="current-password"></label>
+      <p class="form-error" role="alert" hidden></p>
       <button type="submit" class="btn btn-danger" id="confirm-ok"></button>
+      <button type="button" class="btn btn-quiet" id="confirm-cancel">Cancel</button>
     </div>
   </form>
 </dialog>

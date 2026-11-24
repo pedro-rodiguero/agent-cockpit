@@ -38,7 +38,13 @@ func (t tile) canReply() bool {
 // canAdopt reports whether the session runs in a terminal tab and can be resumed in a pane.
 func (t tile) canAdopt() bool { return t.pane == nil && t.sess != nil && resumable(*t.sess) == nil }
 
+// name is what the person calls the session: what it is about when the source knows, since names
+// derived from directories ("saas-2f") tell apart nothing that shares a directory. An inbox item keeps
+// its own name, the person or thing it is about.
 func (t tile) name() string {
+	if t.sess != nil && t.sess.Title != "" && !t.isItem() {
+		return t.sess.Title
+	}
 	if t.sess != nil && t.sess.Name != "" {
 		return t.sess.Name
 	}

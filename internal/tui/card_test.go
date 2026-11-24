@@ -94,7 +94,7 @@ func TestFoldToolRuns(t *testing.T) {
 	}
 }
 
-func TestSessionCardPinsSubjectAndScrolledOutPrompt(t *testing.T) {
+func TestSessionCardPinsScrolledOutPrompt(t *testing.T) {
 	a := newTestApp(gridView, 120, 40)
 	s := model.Session{ID: "s", Agent: "claude", Cwd: "/srv/api", Title: "Rate limiting", State: model.Idle}
 	long := strings.Repeat("word ", 60)
@@ -106,8 +106,8 @@ func TestSessionCardPinsSubjectAndScrolledOutPrompt(t *testing.T) {
 	if len(rows) != 12 {
 		t.Fatalf("got %d rows", len(rows))
 	}
-	if rows[0] != " /srv/api" || rows[1] != " Rate limiting" || rows[2] != " › add rate limiting" {
-		t.Errorf("head rows: %q", rows[:3])
+	if rows[0] != " /srv/api" || rows[1] != " › add rate limiting" {
+		t.Errorf("head rows: %q", rows[:2])
 	}
 	if !strings.HasPrefix(rows[11], " ○ idle") {
 		t.Errorf("state bar: %q", rows[11])
@@ -121,8 +121,9 @@ func TestSessionCardPinsSubjectAndScrolledOutPrompt(t *testing.T) {
 	}
 
 	// A card too short for the extras keeps its rows for the conversation.
-	rows = plain(a.sessionContent(sessionTile(s), 40, 7))
-	if rows[1] == " Rate limiting" {
-		t.Errorf("short card spent a row on the subject: %q", rows)
+	a.convs["s"] = chat.Conversation{Lines: []chat.Line{{Kind: chat.User, Text: "add rate limiting"}, {Kind: chat.Assistant, Text: long}}}
+	rows = plain(a.sessionContent(sessionTile(s), 40, 6))
+	if rows[1] == " › add rate limiting" {
+		t.Errorf("short card spent a row on the pinned prompt: %q", rows)
 	}
 }

@@ -134,3 +134,19 @@ func TestMarkAsked(t *testing.T) {
 		}
 	}
 }
+
+func TestTileName(t *testing.T) {
+	for _, tc := range []struct {
+		t    tile
+		want string
+	}{
+		{tile{sess: &model.Session{Name: "saas-2f", Title: "Job board for the States", State: model.Idle}}, "Job board for the States"},
+		{tile{sess: &model.Session{Name: "saas-2f", State: model.Idle}}, "saas-2f"},
+		{tile{sess: &model.Session{Name: "payments", Title: "Retry failed webhooks", State: model.Inbox}}, "payments"},
+		{tile{pane: &mux.PaneInfo{Cwd: "/srv/api"}}, "api"},
+	} {
+		if got := tc.t.name(); got != tc.want {
+			t.Errorf("name() = %q, want %q", got, tc.want)
+		}
+	}
+}

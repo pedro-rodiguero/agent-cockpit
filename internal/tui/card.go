@@ -13,9 +13,8 @@ import (
 
 // A session card, top to bottom:
 //
-//	╭ ● api-auth ──────────────────── claude · s004 · 1 ╮   title: state, name, where it runs
+//	╭ ● Rate limiting for login ────── claude · s004 · 1 ╮   title: state, subject, where it runs
 //	│ ~/src/api ⎇ feat/limits          opus-5-5 · 212k │   context bar: directory, branch, model, tokens
-//	│ Rate limiting for the login route                 │   subject: what the session is about
 //	│ › add rate limiting to the login route            │   the last prompt, kept in view
 //	│ ⏺ Edit ~/src/api/limits.ts                        │   the end of the conversation
 //	│ Done. Want me to wire it into the gateway?        │
@@ -30,10 +29,9 @@ const (
 	minDirWidth    = 12 // the context bar keeps at least this much of the directory
 	branchGlyph    = "⎇ "
 
-	// Rows a card must have inside before it spends one on the subject, and one on the pinned prompt.
-	// Smaller cards keep those rows for the conversation.
-	minRowsForSubject = 8
-	minRowsForPrompt  = 10
+	// Rows a card must have inside before it spends one on the pinned prompt. Smaller cards keep that
+	// row for the conversation.
+	minRowsForPrompt = 8
 
 	// maxToolRun is how many consecutive tool calls a card lists; a longer run shows its count and
 	// only the latest ones, so tool noise does not push the agent's words out of the card.
@@ -205,9 +203,6 @@ func (a *App) sessionContent(t tile, iw, ih int) []string {
 	}
 	conv := a.convs[t.sess.ID]
 	head := []string{contextBar(t, conv.Info, iw)}
-	if subject := t.sess.Title; subject != "" && ih >= minRowsForSubject {
-		head = append(head, pad(paintBold(cSoft, cBg, " "+fit(subject, iw-2)), iw, cBg))
-	}
 	text := conversation(t, conv.Lines, iw)
 	// Keep the last prompt in view when the answer to it has scrolled it out of the card.
 	room := ih - len(head) - 1

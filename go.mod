@@ -1,6 +1,6 @@
 module github.com/pedro-rodiguero/agent-cockpit
 
-go 1.26.5
+go 1.26.11
 
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff

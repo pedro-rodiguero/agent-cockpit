@@ -33,7 +33,7 @@ cockpit is one Go binary with three roles, plus an optional menu bar app.
 | `internal/peer` | sending a message into a running Claude Code session |
 | `internal/term` | Terminal.app and iTerm2 automation: focus a tab, set tab titles |
 | `internal/tailfile` | reading the end of an append-only log on a line boundary |
-| `menubar` | the Swift menu bar app |
+| `menubar` | the Mac app: menu bar status, notifications, and the dashboard in a SwiftTerm window |
 
 `tui` uses `source`, `todo`, `chat`, `mux`, `peer` and `term`, and `source` uses `todo` for the tasks
 source; none of those use `tui`, and `model` uses nothing.

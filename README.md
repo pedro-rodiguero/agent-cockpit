@@ -61,13 +61,16 @@ own, shows each one as a card with its live conversation, and keeps what needs y
   tools (an issue tracker, a team board) can join it through an external source, each in its own
   section.
 - **Labels your tabs.** Each terminal tab's title shows its session's state and name (`t` toggles it).
-- **Menu bar app (optional).** `◆ ▲1 ●3` in the menu bar, a list of sessions, and a macOS notification
-  when a session starts waiting, looks stuck, or finishes a turn that took more than a minute.
+- **A Mac app (optional).** Agent Cockpit.app runs the dashboard in a window of its own, with its own
+  Dock icon, and stays in the menu bar when the window is closed: `◆ ▲1 ●3`, a list of sessions, and a
+  macOS notification when a session starts waiting, looks stuck, or finishes a turn that took more
+  than a minute. Opening the app from Spotlight or the Dock opens the dashboard.
 
 ## Requirements
 
 - macOS 13 or later (tab focus and titles use AppleScript; the menu bar app is AppKit)
-- Go 1.26 to build, and the Xcode command line tools for the menu bar app
+- Go 1.26 to build, and the Xcode command line tools (Swift 6.1 or later) for the app, whose terminal
+  view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
 - Any of: [Claude Code](https://docs.claude.com/en/docs/claude-code), Codex CLI, Antigravity CLI
 
 ## Install

@@ -41,7 +41,8 @@ cat >"$APP/Contents/Info.plist" <<EOF
   <key>NSAppleEventsUsageDescription</key><string>Open the cockpit dashboard in Terminal.</string>
 </dict></plist>
 EOF
-swiftc -O -o "$APP/Contents/MacOS/AgentCockpit" menubar/main.swift
+swift build -c release --package-path menubar
+cp menubar/.build/release/AgentCockpit "$APP/Contents/MacOS/AgentCockpit"
 # Ad-hoc signature: enough for notifications and for macOS to remember permissions between builds.
 codesign --force --sign - "$APP" >/dev/null
 

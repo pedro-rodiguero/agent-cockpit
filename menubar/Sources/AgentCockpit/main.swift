@@ -273,6 +273,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
         ].compactMap { $0 }
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? candidates[0]
     }()
+    lazy var dashboard = DashboardWindow(cockpit: cockpit)
     var notifyOn: Bool {
         get { UserDefaults.standard.object(forKey: "notify") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "notify") }
@@ -394,7 +395,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
             list.forEach { menu.addItem(row($0)) }
         }
         menu.addItem(.separator())
-        let panel = NSMenuItem(title: "Open dashboard in Terminal", action: #selector(openPanel), keyEquivalent: "p")
+        let window = NSMenuItem(title: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "d")
+        window.target = self
+        menu.addItem(window)
+        let panel = NSMenuItem(title: "Open Dashboard in Terminal", action: #selector(openPanel), keyEquivalent: "")
         panel.target = self
         menu.addItem(panel)
         let n = NSMenuItem(title: "Notifications", action: #selector(toggleNotify), keyEquivalent: "")
@@ -471,6 +475,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
 
     /// Opens the dashboard in a new Terminal window. The path travels as an argument to the script and
     /// `quoted form of` shell-quotes it, so spaces and quotes in it are neither split nor interpreted.
+    @objc func openDashboard() { dashboard.show() }
+
+    /// Opening the app again (from Finder, Spotlight or the Dock) shows the dashboard window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        dashboard.show()
+        return true
+    }
+
     @objc func openPanel() {
         let script = """
         on run argv

@@ -17,7 +17,8 @@ lint: ## gofmt, go vet and staticcheck
 
 menubar: ## Build the menu bar app binary into bin/
 	mkdir -p bin
-	swiftc -O -o bin/AgentCockpit menubar/main.swift
+	swift build -c release --package-path menubar
+	cp menubar/.build/release/AgentCockpit bin/AgentCockpit
 
 install: ## Install cockpit and the menu bar app for the current user
 	./scripts/install.sh

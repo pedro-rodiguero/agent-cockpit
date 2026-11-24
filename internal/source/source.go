@@ -70,11 +70,12 @@ func (c *Collector) Collect(ctx context.Context) model.Snapshot {
 		if a.State.Rank() != b.State.Rank() {
 			return a.State.Rank() < b.State.Rank()
 		}
+		if a.State == model.Todo {
+			// Tasks stay together by source, in the order each source gave them.
+			return sourceOf(a.ID) < sourceOf(b.ID)
+		}
 		if a.Agent != b.Agent {
 			return a.Agent < b.Agent
-		}
-		if a.State == model.Todo {
-			return false // a to-do list keeps the order its source gave it
 		}
 		return a.Name < b.Name
 	})
@@ -82,6 +83,12 @@ func (c *Collector) Collect(ctx context.Context) model.Snapshot {
 		snap.Errors = nil
 	}
 	return snap
+}
+
+// sourceOf is the source part of a session ID ("tasks:t1f2" → "tasks").
+func sourceOf(id string) string {
+	src, _, _ := strings.Cut(id, ":")
+	return src
 }
 
 func humanDur(d time.Duration) string {

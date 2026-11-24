@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
 )
 
 // Default builds the collector from the environment:
@@ -24,6 +26,7 @@ func Default() *Collector {
 		&Claude{Dirs: ClaudeDirs()},
 		&Codex{Root: filepath.Join(home, ".codex", "sessions")},
 		&Agy{Root: filepath.Join(home, ".gemini", "antigravity-cli")},
+		&Tasks{Store: &todo.Store{Path: todo.DefaultPath()}},
 	}
 	for _, e := range FindExternal(os.Getenv("PATH")) {
 		all = append(all, e)

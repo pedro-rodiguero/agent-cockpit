@@ -66,6 +66,14 @@ On Linux everything runs in any terminal except what needs macOS: going to a ses
 
 ## Install
 
+**Download:** each [release](https://github.com/pedro-rodiguero/agent-cockpit/releases) has
+`Agent-Cockpit-<version>-macos.zip` (the app, with `cockpit` inside, for Apple silicon and Intel) and
+`cockpit` for macOS and Linux. The app is not notarized yet: the first time, open it with right click ›
+Open. For `cockpit` in the terminal, link the one inside the app:
+`ln -s "/Applications/Agent Cockpit.app/Contents/MacOS/cockpit" /usr/local/bin/cockpit`.
+
+**From source:**
+
 ```sh
 git clone https://github.com/pedro-rodiguero/agent-cockpit
 cd agent-cockpit

@@ -267,13 +267,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     /// applied in the order they were requested.
     var polling = false
     var timer: Timer?
-    /// The cockpit binary: $COCKPIT_BIN, then the path the installer recorded in Info.plist, then the
-    /// usual install locations.
+    /// The cockpit binary: $COCKPIT_BIN, then the path the installer recorded in Info.plist, then the one
+    /// inside the app (release builds carry it), then the usual install locations.
     let cockpit: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidates = [
             ProcessInfo.processInfo.environment["COCKPIT_BIN"],
             Bundle.main.object(forInfoDictionaryKey: "CockpitBinary") as? String,
+            Bundle.main.path(forAuxiliaryExecutable: "cockpit"),
             "\(home)/.local/bin/cockpit",
             "/opt/homebrew/bin/cockpit",
             "/usr/local/bin/cockpit",

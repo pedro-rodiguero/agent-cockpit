@@ -32,6 +32,7 @@ Claude Code profiles, the Codex and agy folders, and every source it can collect
 | `app.font` | the system's monospaced font | a monospaced font family for the app window |
 | `app.fontSize` | `13` | |
 | `app.notify` | `true` | the app's notifications |
+| `app.hotKey` | `option+space` | the shortcut that brings the dashboard up from any app and hides it again: modifiers (`control`, `option`, `shift`, `command`) and a key (a letter, a digit, `space`, `grave`) joined by `+`, or `off` |
 
 Durations are Go durations: `90s`, `45m`, `1h30m`.
 

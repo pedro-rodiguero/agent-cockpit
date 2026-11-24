@@ -22,6 +22,9 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
 
     var isOpen: Bool { window != nil }
 
+    /// Whether the window is the one taking keys.
+    var isKey: Bool { window?.isKeyWindow ?? false }
+
     /// Brings the window to the front, starting the dashboard if it is not running.
     func show() {
         if window == nil {

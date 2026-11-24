@@ -278,11 +278,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     lazy var settingsWindow = SettingsWindow(settings: settings, cockpit: cockpit)
     /// Pending restart of the dashboard after a change to settings it reads only at startup.
     var restart: DispatchWorkItem?
+    let hotKey = HotKey()
 
     func applicationDidFinishLaunching(_ n: Notification) {
         menu.delegate = self
         item.menu = menu
         NSApp.mainMenu = mainMenu()
+        hotKey.action = { [weak self] in self?.toggleDashboard() }
+        registerHotKey()
         NotificationCenter.default.addObserver(forName: CockpitSettings.changed, object: settings, queue: .main) { [weak self] n in
             self?.settingsChanged(n.userInfo?["key"] as? String ?? "")
         }
@@ -302,7 +305,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     }
 
     func poll() {
-        if settings.reload() { dashboard.apply() } // edited by hand
+        if settings.reload() { // edited by hand
+            dashboard.apply()
+            registerHotKey()
+        }
         guard !polling else { return }
         polling = true
         let binary = cockpit
@@ -488,6 +494,21 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
 
     @objc func openDashboard() { dashboard.show() }
 
+    /// The hotkey: brings the dashboard to the front, or hides the app when the dashboard is already in
+    /// front, so the same key goes back to what was there before.
+    func toggleDashboard() {
+        if NSApp.isActive && dashboard.isKey {
+            NSApp.hide(nil)
+        } else {
+            dashboard.show()
+        }
+    }
+
+    func registerHotKey() {
+        let shortcut = settings.hotKey == "off" ? nil : Shortcut(settings.hotKey)
+        settings.hotKeyTaken = !hotKey.register(shortcut)
+    }
+
     @objc func openSettings() { settingsWindow.show() }
 
     /// Opening the app again (from Finder, Spotlight or the Dock) shows the dashboard window.
@@ -521,6 +542,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifica
     /// stuck time are read when the dashboard starts, so it restarts, once typing has paused.
     func settingsChanged(_ key: String) {
         dashboard.apply()
+        registerHotKey()
         guard ["accounts", "sources", "stuckAfter"].contains(key), dashboard.isOpen else { return }
         restart?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.dashboard.restart() }

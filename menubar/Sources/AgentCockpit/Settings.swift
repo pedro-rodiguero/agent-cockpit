@@ -17,6 +17,8 @@ final class CockpitSettings: ObservableObject {
     /// Set while the file on disk does not parse. Writes are refused then, so a hand edit in progress is
     /// not overwritten.
     @Published private(set) var problem: String?
+    /// Set by the app when another app already holds the hotkey.
+    @Published var hotKeyTaken = false
     private var modified: Date?
 
     init() { reload() }
@@ -150,6 +152,11 @@ final class CockpitSettings: ObservableObject {
     var fontSize: Double {
         get { (value(["app", "fontSize"]) as? NSNumber)?.doubleValue ?? 13 }
         set { set(newValue == 13 ? nil : newValue, ["app", "fontSize"]) }
+    }
+    /// The shortcut that shows and hides the dashboard from any app, or "off".
+    var hotKey: String {
+        get { value(["app", "hotKey"]) as? String ?? "option+space" }
+        set { set(newValue == "option+space" ? nil : newValue, ["app", "hotKey"]) }
     }
     var notify: Bool {
         get { (value(["app", "notify"]) as? NSNumber)?.boolValue ?? true }

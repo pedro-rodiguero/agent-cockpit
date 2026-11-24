@@ -51,7 +51,8 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 - **A Mac app (optional).** Agent Cockpit.app runs the dashboard in a window of its own, with its own
   Dock icon, and stays in the menu bar when the window is closed: `◆ ▲1 ●3`, a list of sessions, and a
   macOS notification when a session starts waiting, looks stuck, or finishes a turn that took more
-  than a minute. Opening the app from Spotlight or the Dock opens the dashboard.
+  than a minute. `⌥Space` brings the dashboard up
+  from any app and puts it away again. Opening the app from Spotlight or the Dock opens the dashboard.
 
 ## Requirements
 
@@ -78,11 +79,12 @@ whether your terminal may control Terminal.app or iTerm2.
 ## Use
 
 ```sh
-cockpit            # the dashboard
-cockpit panes      # panes held by the server (-screen prints their screens)
-cockpit json       # one snapshot as JSON
-cockpit open <id>  # focus a session's tab, or open an inbox item's link
-cockpit config     # the settings in effect and what was detected
+cockpit             # the dashboard
+cockpit panes       # panes held by the server (-screen prints their screens)
+cockpit json        # one snapshot as JSON
+cockpit open <id>   # focus a session's tab, or open an inbox item's link
+cockpit config      # the settings in effect and what was detected
+cockpit select <id> # select a session in the open dashboards
 ```
 
 | key | action |

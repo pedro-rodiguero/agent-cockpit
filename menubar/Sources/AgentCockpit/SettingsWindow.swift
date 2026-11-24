@@ -241,6 +241,21 @@ struct GeneralPane: View {
                     .onChange(of: atLogin) { LoginItem.set($0) }
             }
             Section {
+                Picker("Show and hide the dashboard", selection: $settings.hotKey) {
+                    Text("Off").tag("off")
+                    ForEach(hotKeys.contains(settings.hotKey) || settings.hotKey == "off" ? hotKeys : [settings.hotKey] + hotKeys,
+                            id: \.self) { key in
+                        Text(Shortcut(key)?.label ?? key).tag(key)
+                    }
+                }
+            } footer: {
+                if settings.hotKeyTaken {
+                    Text("Another app already uses this shortcut. Pick another.").foregroundColor(.red)
+                } else {
+                    Text("Works from any app.").foregroundColor(.secondary)
+                }
+            }
+            Section {
                 DurationPicker(label: "Idle sessions move to the side after", value: $settings.quietAfter,
                                options: ["15m", "30m", "1h", "2h", "4h", "8h"])
                 DurationPicker(label: "A silent working session is stuck after", value: $settings.stuckAfter,
@@ -271,6 +286,8 @@ struct GeneralPane: View {
         .formStyle(.grouped)
     }
 }
+
+private let hotKeys = ["option+space", "control+option+space", "control+grave", "option+grave", "control+option+c"]
 
 struct DurationPicker: View {
     let label: String

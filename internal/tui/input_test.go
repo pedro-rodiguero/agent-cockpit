@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
@@ -408,5 +410,23 @@ func TestEnterReopensAnEndedPane(t *testing.T) {
 	}
 	if s := spawned[1]; s.Agent != "shell" || s.Cwd != "/tmp" || len(s.Args) != 0 {
 		t.Errorf("shell pane reopened as %+v", s)
+	}
+}
+
+func TestFooterAndHelp(t *testing.T) {
+	a, _, _ := appWithTabSession()
+	lines, _ := a.compose()
+	foot := ansi.Strip(lines[len(lines)-1])
+	if !strings.HasPrefix(foot, " ⏎ continue here   o go to tab") || !strings.Contains(foot, "? keys") {
+		t.Errorf("footer: %q", foot)
+	}
+	press(a, "?")
+	lines, _ = a.compose()
+	if !strings.Contains(ansi.Strip(strings.Join(lines, "\n")), "KEYS") {
+		t.Fatal("? did not show the keys")
+	}
+	press(a, "j")
+	if a.help || a.cur() != 0 {
+		t.Errorf("a key on the help screen should only close it: help %v, selection %d", a.help, a.cur())
 	}
 }

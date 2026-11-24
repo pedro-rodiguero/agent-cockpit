@@ -81,9 +81,12 @@ func (a *App) compose() ([]string, cursor) {
 	lines := a.header(w)
 	var body []string
 	var cur cursor
-	if a.view == gridView {
+	switch {
+	case a.help:
+		body = helpBody(w, h-headerRows-footerRows)
+	case a.view == gridView:
 		body, cur = a.gridBody()
-	} else {
+	default:
 		body = a.listBody()
 	}
 	lines = append(lines, body...)
@@ -379,15 +382,13 @@ func (a *App) footer(w, y int) (string, cursor) {
 	}
 	key := func(k, d string) string { return paint(cGold, cBg, k) + paint(cFaint, cBg, " "+d+"   ") }
 	foot := paint(cInk, cBg, " ")
-	if a.mode == insertMode {
+	switch {
+	case a.mode == insertMode:
 		foot += paint(cGoldHi, cBg, "typing into the agent   ") + key("ctrl-q", "back to cockpit")
-	} else {
-		otherView := "grid"
-		if a.view == gridView {
-			otherView = "list"
-		}
-		foot += key("←↑↓→", "move") + key("⏎", "open") + key("n", "new") + key("v", otherView) +
-			key("z", "zoom") + key("r", "reply") + key("!", "next needing me") + key("a", "filter") + key("q", "quit")
+	case a.help:
+		foot += key("any key", "closes this")
+	default:
+		foot += a.footerKeys(w, key)
 	}
 	if msg := a.footerMessage(); msg != "" {
 		if room := w - width(foot) - 1; room > 8 {
@@ -395,6 +396,31 @@ func (a *App) footer(w, y int) (string, cursor) {
 		}
 	}
 	return pad(foot, w, cBg), cursor{}
+}
+
+// footerKeys are the keys for the selected tile, then the general ones that fit in w cells. "? keys"
+// always stays, since it leads to the rest.
+func (a *App) footerKeys(w int, key func(k, d string) string) string {
+	var own string
+	if t, ok := a.selected(); ok {
+		for _, k := range tileKeys(t) {
+			own += key(k.key, k.does)
+		}
+		own += paint(cLine, cBg, "│  ")
+	}
+	otherView := "grid"
+	if a.view == gridView {
+		otherView = "list"
+	}
+	general := []keyHint{{"n", "new"}, {"!", "next needing me"}, {"v", otherView}, {"q", "quit"}}
+	tail := key("?", "keys")
+	out := own
+	for _, k := range general {
+		if s := key(k.key, k.does); width(out+s+tail) < w {
+			out += s
+		}
+	}
+	return out + tail
 }
 
 // footerMessage is the current flash, or else the sources' errors.

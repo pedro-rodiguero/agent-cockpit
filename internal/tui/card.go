@@ -63,7 +63,7 @@ func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, 
 		}
 		lines = append(lines, side+pad(row, iw, cBg)+side)
 	}
-	lines = append(lines, cardBottom(t, cw, border, selected, insert))
+	lines = append(lines, cardBottom(cw, border, insert))
 	if cur.show {
 		cur.x++
 		cur.y++
@@ -134,41 +134,44 @@ func agentLabel(t tile) string {
 	return label
 }
 
-func cardBottom(t tile, cw int, border rgb, selected, insert bool) string {
-	hint, hfg := "", cGold
-	if selected {
-		hint = cardHint(t, insert)
-	}
+// cardBottom closes the card. While the person types into the card's pane it says how to leave; the
+// keys for a selected card are in the footer.
+func cardBottom(cw int, border rgb, insert bool) string {
+	hint := ""
 	if insert {
-		hfg = cGoldHi
+		hint = " typing into the agent · ctrl-q leaves "
 	}
 	if width(hint) > cw-4 {
 		hint = ""
 	}
-	bot := paint(border, cBg, "╰") + paint(hfg, cBg, hint) + paint(border, cBg, strings.Repeat("─", max(0, cw-cardBorderCols-width(hint)))+"╯")
+	bot := paint(border, cBg, "╰") + paint(cGoldHi, cBg, hint) + paint(border, cBg, strings.Repeat("─", max(0, cw-cardBorderCols-width(hint)))+"╯")
 	return pad(bot, cw, cBg)
 }
 
-// cardHint lists the keys that work on the selected card.
-func cardHint(t tile, insert bool) string {
+// keyHint is a key and what it does.
+type keyHint struct{ key, does string }
+
+// tileKeys lists the keys that act on t, the one that does the obvious thing first.
+func tileKeys(t tile) []keyHint {
 	switch {
-	case insert:
-		return " typing into agent · ctrl-q leaves "
 	case t.pane != nil && t.pane.Exited:
-		return " exited · ⏎ reopen · x close "
+		return []keyHint{{"⏎", "reopen"}, {"x", "close"}, {"z", "zoom"}}
 	case t.pane != nil:
-		return " ⏎ type · z zoom · x close "
+		return []keyHint{{"⏎", "type into it"}, {"z", "zoom"}, {"x", "close"}}
 	case t.isItem():
-		return " ⏎ open "
+		return []keyHint{{"⏎", "open"}}
 	}
-	keys := []string{"⏎ go to tab"}
-	if t.canAdopt() {
-		keys = []string{"⏎ continue here", "o go to tab"}
+	var keys []keyHint
+	switch {
+	case t.canAdopt():
+		keys = append(keys, keyHint{"⏎", "continue here"}, keyHint{"o", "go to tab"})
+	case t.sess != nil && t.sess.TTY != "":
+		keys = append(keys, keyHint{"⏎", "go to tab"})
 	}
 	if t.canReply() {
-		keys = append(keys, "r reply")
+		keys = append(keys, keyHint{"r", "reply"})
 	}
-	return " " + strings.Join(append(keys, "z zoom"), " · ") + " "
+	return append(keys, keyHint{"z", "zoom"})
 }
 
 func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {

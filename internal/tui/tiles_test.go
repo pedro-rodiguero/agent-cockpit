@@ -103,8 +103,11 @@ func TestTileCapabilities(t *testing.T) {
 			t.Errorf("%s: canReply %v canAdopt %v", c.name, c.t.canReply(), c.t.canAdopt())
 		}
 	}
-	if h := cardHint(tile{sess: &codexNoID}, false); h != " ⏎ go to tab · z zoom " {
-		t.Errorf("hint offers what the card can't do: %q", h)
+	if h := tileKeys(tile{sess: &codexNoID}); len(h) != 1 || h[0].key != "z" {
+		t.Errorf("keys offer what the card can't do: %v", h)
+	}
+	if h := tileKeys(tile{sess: &claude}); len(h) != 4 || h[0] != (keyHint{"⏎", "continue here"}) {
+		t.Errorf("claude in a tab: %v", h)
 	}
 }
 

@@ -110,6 +110,7 @@ type App struct {
 	view     viewKind
 	onlyAttn bool
 	zoom     bool
+	help     bool // the key list covers the body
 	mode     mode
 	prompt   *prompt
 

@@ -43,6 +43,7 @@ const (
 	actReply
 	actClosePane
 	actAdopt
+	actHelp
 )
 
 // binding is a key as navigation mode sees it.
@@ -75,6 +76,7 @@ var navBindings = map[binding]action{
 	{keyRune, "r"}: actReply,
 	{keyRune, "x"}: actClosePane,
 	{keyRune, "p"}: actAdopt,
+	{keyRune, "?"}: actHelp,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -151,6 +153,10 @@ func (a *App) typingTarget() (tile, bool) {
 }
 
 func (a *App) navKey(k key) {
+	if a.help {
+		a.help = false
+		return
+	}
 	if n, ok := cardNumber(k); ok {
 		if i, ok := a.lay.onPage(n); ok {
 			a.selectIndex(i)
@@ -209,6 +215,8 @@ func (a *App) navKey(k key) {
 		a.confirmClosePane()
 	case actAdopt:
 		a.adopt()
+	case actHelp:
+		a.help = true
 	}
 }
 

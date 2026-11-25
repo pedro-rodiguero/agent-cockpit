@@ -48,6 +48,7 @@ override it:
   COCKPIT_SOURCES       comma-separated sources to enable (default: all but the ones turned off)
   COCKPIT_STUCK_AFTER   how long a working session may stay silent before it counts as stuck (10m)
   COCKPIT_CLAUDE_DIRS   colon-separated Claude Code config dirs (default: ~/.claude and ~/.claude-*)
+  COCKPIT_COLOR         truecolor or 256, when the terminal's color support is detected wrong
 
 External sources: any executable named cockpit-source-<name> on PATH. See docs/sources.md.
 `

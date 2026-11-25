@@ -107,6 +107,11 @@ func cardNumber(k key) (int, bool) {
 // onKeys handles the keys of one read in order, each in the mode the previous one left.
 func (a *App) onKeys(keys []key) {
 	for _, k := range keys {
+		if k.code == keyMouse {
+			a.onMouse(k.mouse)
+			continue
+		}
+		a.selecting = nil
 		switch a.mode {
 		case insertMode:
 			a.insertKey(k)

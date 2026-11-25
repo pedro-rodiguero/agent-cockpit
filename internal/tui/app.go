@@ -148,6 +148,7 @@ type App struct {
 	replacing     bool                     // an old pane server was asked to exit
 	saidOld       bool                     // the footer said the pane server is old
 	flash         flash
+	selecting     *selection // text selected with the mouse, shown until the next key or click
 
 	scr        *screen
 	w, h       int
@@ -441,6 +442,7 @@ func (a *App) handle(ev event) {
 	case evAlert:
 		a.alert(ev.msg)
 	case evResize:
+		a.selecting = nil
 		a.w, a.h = a.scr.size()
 		a.rebuild() // whether tasks have a rail to go to depends on the width
 	case evQuit:

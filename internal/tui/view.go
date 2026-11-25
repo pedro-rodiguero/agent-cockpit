@@ -58,6 +58,7 @@ func firstOf(v ...string) string {
 
 func (a *App) draw() {
 	lines, cur := a.compose()
+	a.highlight(lines)
 	a.scr.frame(lines, a.w, a.h, cur)
 }
 

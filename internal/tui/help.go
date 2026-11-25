@@ -9,6 +9,7 @@ var helpKeys = [][]keyHint{
 		{"tab", "next card · shift-tab previous"},
 		{"1–9", "card on this page"},
 		{"[ ]", "previous and next page · g G first and last"},
+		{"click", "select a card · drag selects text in one pane, copied on release"},
 	},
 	{
 		{"⏎", "the obvious thing: type into a pane, continue a tab's session here,"},

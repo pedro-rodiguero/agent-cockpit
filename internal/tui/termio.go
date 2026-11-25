@@ -11,10 +11,12 @@ import (
 
 // Terminal setup and teardown sequences.
 const (
-	// alternate screen, hide the cursor, enable bracketed paste, clear
-	enterSeq = "\x1b[?1049h\x1b[?25l\x1b[?2004h\x1b[2J"
-	// reset attributes, clear, disable bracketed paste, show the cursor, leave the alternate screen
-	leaveSeq = "\x1b[0m\x1b[2J\x1b[?2004l\x1b[?25h\x1b[?1049l"
+	// alternate screen, hide the cursor, enable bracketed paste, report mouse presses and drags (SGR
+	// encoding), clear
+	enterSeq = "\x1b[?1049h\x1b[?25l\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[2J"
+	// reset attributes, clear, stop mouse reports, disable bracketed paste, show the cursor, leave the
+	// alternate screen
+	leaveSeq = "\x1b[0m\x1b[2J\x1b[?1006l\x1b[?1002l\x1b[?2004l\x1b[?25h\x1b[?1049l"
 
 	syncBegin = "\x1b[?2026h" // synchronized update: the terminal shows the frame only when it is complete
 	syncEnd   = "\x1b[?2026l"

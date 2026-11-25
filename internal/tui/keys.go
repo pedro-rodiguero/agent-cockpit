@@ -2,6 +2,8 @@ package tui
 
 import (
 	"bytes"
+	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -28,14 +30,16 @@ const (
 	keyEnd
 	keyPgUp
 	keyPgDown
+	keyMouse // a mouse report; key.mouse holds it
 )
 
 // key is one decoded key press or paste.
 type key struct {
-	code keyCode
-	text string // the character (keyRune), the letter (keyCtrl), or the pasted text (keyPaste)
-	alt  bool   // pressed with alt/option, which terminals send as an ESC prefix
-	raw  []byte // the bytes that encoded it, forwarded verbatim to a pane; nil for keyPaste
+	code  keyCode
+	text  string // the character (keyRune), the letter (keyCtrl), or the pasted text (keyPaste)
+	alt   bool   // pressed with alt/option, which terminals send as an ESC prefix
+	raw   []byte // the bytes that encoded it, forwarded verbatim to a pane; nil for keyPaste
+	mouse mouseEvent
 }
 
 const (
@@ -170,6 +174,9 @@ func decodeCSI(b []byte) (key, int) {
 		return key{code: keyRune, text: "[", alt: true, raw: b[:2]}, 2
 	}
 	n := i + 1
+	if m, ok := decodeMouse(b[2:i], b[i]); ok {
+		return key{code: keyMouse, mouse: m}, n
+	}
 	return key{code: csiKeys[string(b[2:n])], raw: b[:n]}, n
 }
 
@@ -208,3 +215,25 @@ func (k key) isCtrl(letter string) bool { return k.code == keyCtrl && k.text == 
 
 // isRune reports whether k is the plain character s, without alt.
 func (k key) isRune(s string) bool { return k.code == keyRune && !k.alt && k.text == s }
+
+// decodeMouse decodes the parameters and final byte of an SGR mouse report, "ESC [ < b ; x ; y M"
+// (press or motion) or "... m" (release).
+func decodeMouse(params []byte, final byte) (mouseEvent, bool) {
+	if len(params) == 0 || params[0] != '<' || (final != 'M' && final != 'm') {
+		return mouseEvent{}, false
+	}
+	f := strings.Split(string(params[1:]), ";")
+	if len(f) != 3 {
+		return mouseEvent{}, false
+	}
+	var v [3]int
+	for i, s := range f {
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return mouseEvent{}, false
+		}
+		v[i] = n
+	}
+	// Shift, alt and ctrl add 4, 8 and 16 to the button; they change nothing here.
+	return mouseEvent{btn: v[0] &^ 28, x: v[1] - 1, y: v[2] - 1, release: final == 'm'}, true
+}

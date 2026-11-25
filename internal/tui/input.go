@@ -681,14 +681,15 @@ func (pr *prompt) tab(step int) {
 	pr.text = []rune(pr.matches[pr.at])
 }
 
-// ghost is the rest of the path tab would add, shown after the cursor while typing.
+// ghost is the rest of the path tab would add, shown after the cursor while typing. Tab also fixes the
+// case of what was typed, which the ghost cannot show.
 func (pr *prompt) ghost() string {
 	if pr.cycling {
 		return ""
 	}
 	t := string(pr.text)
-	if c := extendPath(t, pr.matches); c != t && strings.HasPrefix(c, t) {
-		return c[len(t):]
+	if c := extendPath(t, pr.matches); c != t && hasPrefixFold(c, t) {
+		return string([]rune(c)[len(pr.text):])
 	}
 	return ""
 }

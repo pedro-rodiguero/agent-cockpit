@@ -116,6 +116,32 @@ func TestCompleteDirFollowsSymlinksAndKeepsTrailingSlash(t *testing.T) {
 	}
 }
 
+func TestCompleteDirIgnoresCase(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"Desktop", "Decio", "documents", "Área"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := map[string]string{
+		root + "/desk": root + "/Desktop/",   // the one match, its case fixed
+		root + "/de":   root + "/De",         // what Decio and Desktop share
+		root + "/DO":   root + "/documents/", // upper case typed, lower case on disk
+		root + "/á":    root + "/Área/",
+		root + "/d":    root + "/d", // Decio, Desktop and documents share only the d
+	}
+	for in, want := range cases {
+		if got := completeDir(in); got != want {
+			t.Errorf("completeDir(%q) = %q, want %q", in, got, want)
+		}
+	}
+	pr := &prompt{kind: promptNew, text: []rune(root + "/desk")}
+	pr.refreshMatches()
+	if g := pr.ghost(); g != "top/" {
+		t.Errorf("ghost after desk: %q", g)
+	}
+}
+
 func isValidUTF8(s string) bool { return strings.ToValidUTF8(s, "�") == s }
 
 func TestAgo(t *testing.T) {

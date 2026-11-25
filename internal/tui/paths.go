@@ -31,8 +31,8 @@ func untilde(p string) string {
 }
 
 // dirMatches lists the directories the last element of p completes to, as paths ending in "/", in the
-// form tilde gives. Symlinks to directories count. Hidden directories are offered only when the typed
-// name starts with a dot.
+// form tilde gives. Case is ignored, as oh-my-zsh does by default, and symlinks to directories count.
+// Hidden directories are offered only when the typed name starts with a dot.
 func dirMatches(p string) []string {
 	dir, base := filepath.Split(untilde(p))
 	if dir == "" {
@@ -45,7 +45,7 @@ func dirMatches(p string) []string {
 	var matches []string
 	for _, e := range ents {
 		name := e.Name()
-		if !strings.HasPrefix(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
+		if !hasPrefixFold(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
 			continue
 		}
 		full := filepath.Join(dir, name)
@@ -74,13 +74,19 @@ func extendPath(p string, matches []string) string {
 	}
 	dir, base := filepath.Split(untilde(p))
 	common := commonPrefix(names)
-	if len([]rune(common)) <= len([]rune(base)) {
+	if n, b := len([]rune(common)), len([]rune(base)); n < b || (n == b && common == base) {
 		return p
 	}
 	if dir == "" {
 		return common
 	}
 	return tilde(filepath.Join(dir, common))
+}
+
+// hasPrefixFold is strings.HasPrefix ignoring case.
+func hasPrefixFold(s, prefix string) bool {
+	r, p := []rune(s), []rune(prefix)
+	return len(r) >= len(p) && strings.EqualFold(string(r[:len(p)]), prefix)
 }
 
 // matchName is the last element of a match, with its slash: what a list of matches shows.

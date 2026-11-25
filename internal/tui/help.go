@@ -13,9 +13,10 @@ var helpKeys = [][]keyHint{
 		{"wheel", "scroll a pane back through its history, or a full-screen program like Claude Code itself · typing returns to the live screen"},
 	},
 	{
-		{"⏎", "the obvious thing: type into a pane, continue a tab's session here,"},
+		{"⏎ i", "the obvious thing: type into a pane, continue a tab's session here,"},
 		{"", "reopen an ended pane, go to a tab, open an inbox item"},
 		{"o", "go to the session's terminal tab"},
+		{"p", "move a session from its terminal tab into a pane"},
 		{"r", "send a message to a Claude Code session"},
 		{"n", "new pane"},
 		{"x", "close a pane, stopping its agent; delete a task"},

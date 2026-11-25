@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/pedro-rodiguero/agent-cockpit/security/advisories/new
+    about: Privately, not in a public issue. See SECURITY.md.

@@ -69,6 +69,9 @@ func (e *External) run(ctx context.Context) ([]model.Session, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, e.Path)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	// A child the source leaves behind can hold stdout open after the source is killed; stop waiting
+	// for it rather than for ever.
+	cmd.WaitDelay = time.Second
 	if err := cmd.Run(); err != nil {
 		if msg := firstLine(stderr.String()); msg != "" {
 			return nil, errors.New(msg)

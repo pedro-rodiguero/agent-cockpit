@@ -34,7 +34,7 @@ func TestExternal(t *testing.T) {
 	}
 
 	now := time.Now()
-	got, err := found[1].Collect(context.Background(), &Env{Now: now})
+	got, err := found[1].Collect(testCtx(t), &Env{Now: now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestExternal(t *testing.T) {
 		t.Errorf("generated id = %q", got[1].ID)
 	}
 
-	_, err = found[0].Collect(context.Background(), &Env{Now: now})
+	_, err = found[0].Collect(testCtx(t), &Env{Now: now})
 	if err == nil || err.Error() != "token expired" {
 		t.Errorf("failing source error = %v", err)
 	}
@@ -60,14 +60,22 @@ func TestExternalKeepsLastResultWhileFailing(t *testing.T) {
 	}
 	e := &External{Path: path, Every: time.Second, Keep: time.Minute}
 	t0 := time.Now()
-	if got, _ := e.Collect(context.Background(), &Env{Now: t0}); len(got) != 1 {
+	if got, _ := e.Collect(testCtx(t), &Env{Now: t0}); len(got) != 1 {
 		t.Fatalf("first run: %v", got)
 	}
 	write(t, path+".down", "")
-	if got, err := e.Collect(context.Background(), &Env{Now: t0.Add(2 * time.Second)}); len(got) != 1 || err == nil {
+	if got, err := e.Collect(testCtx(t), &Env{Now: t0.Add(2 * time.Second)}); len(got) != 1 || err == nil {
 		t.Fatalf("while failing: %v, %v", got, err)
 	}
-	if got, _ := e.Collect(context.Background(), &Env{Now: t0.Add(2 * time.Minute)}); len(got) != 0 {
+	if got, _ := e.Collect(testCtx(t), &Env{Now: t0.Add(2 * time.Minute)}); len(got) != 0 {
 		t.Fatalf("after Keep: %v", got)
 	}
+}
+
+// testCtx ends with the test or after 10 seconds, so a source that hangs fails the test instead of
+// stalling the run.
+func testCtx(t *testing.T) context.Context {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	return ctx
 }

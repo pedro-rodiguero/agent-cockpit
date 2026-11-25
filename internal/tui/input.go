@@ -468,7 +468,7 @@ func (a *App) confirmClosePane() {
 		return
 	}
 	id, name := t.pane.ID, t.name()
-	a.confirm("close "+name+"? the agent is stopped · y / n", func() {
+	a.confirm("close "+name+"? the agent is stopped · y·⏎ yes · n·esc no", func() {
 		if a.send(mux.Msg{Op: mux.OpClose, ID: id}) {
 			a.say("closed " + name)
 		}
@@ -497,7 +497,7 @@ func (a *App) adopt() {
 	}
 	id, pid, name := t.sess.ID, t.sess.PID, t.name()
 	if _, waiting := a.pendingMoves[id]; waiting {
-		a.confirm("cancel continuing "+name+" here? it stays in its tab · y / n", func() {
+		a.confirm("cancel continuing "+name+" here? it stays in its tab · y·⏎ yes · n·esc no", func() {
 			delete(a.pendingMoves, id)
 			a.say(name + " stays in its tab")
 		})
@@ -508,11 +508,11 @@ func (a *App) adopt() {
 	switch t.sess.State {
 	case model.Busy, model.Waiting:
 		question = "continue " + name + " here? it is " + look(t.sess.State).label +
-			": it moves when this turn ends, nothing is cut · y / n"
+			": it moves when this turn ends, nothing is cut · y·⏎ yes · n·esc no"
 	case model.Stuck:
-		question = "continue " + name + " here? it looks stuck: its current turn is cut off · y / n"
+		question = "continue " + name + " here? it looks stuck: its current turn is cut off · y·⏎ yes · n·esc no"
 	default:
-		question = "continue " + name + " here? its terminal tab stops and the conversation resumes in a pane · y / n"
+		question = "continue " + name + " here? its terminal tab stops and the conversation resumes in a pane · y·⏎ yes · n·esc no"
 	}
 	a.confirm(question, func() { a.requestMove(id, pid, t.sess.State, name) })
 	a.offerTab(t)
@@ -644,10 +644,10 @@ func (a *App) confirm(label string, onYes func()) {
 func (a *App) promptKey(k key) {
 	pr := a.prompt
 	switch {
-	case k.code == keyEsc || k.isCtrl("c"):
-		a.closePrompt()
 	case pr.kind == promptConfirm:
 		a.answer(k)
+	case k.code == keyEsc || k.isCtrl("c"):
+		a.closePrompt()
 	case k.code == keyEnter:
 		a.submit()
 	case k.code == keyBackspace:
@@ -669,8 +669,8 @@ func (a *App) promptKey(k key) {
 	}
 }
 
-// answer resolves a confirmation: "y" confirms, any other key declines. Pasted text does neither, so a
-// paste that happens to contain "y" can never confirm.
+// answer resolves a confirmation: "y" or Enter confirms, any other key (Esc included) declines. Pasted
+// text does neither, so a paste that happens to contain "y" or a newline can never confirm.
 func (a *App) answer(k key) {
 	if k.code == keyPaste {
 		return
@@ -678,7 +678,7 @@ func (a *App) answer(k key) {
 	pr := a.prompt
 	a.closePrompt()
 	switch {
-	case k.isRune("y") || k.isRune("Y"):
+	case k.isRune("y") || k.isRune("Y") || k.code == keyEnter:
 		pr.onYes()
 	case k.isRune("o") && pr.onO != nil:
 		pr.onO()

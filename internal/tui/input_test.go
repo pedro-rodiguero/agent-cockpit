@@ -135,7 +135,7 @@ func TestPasteIntoPaneUsesPasteOp(t *testing.T) {
 
 func TestPasteNeverConfirms(t *testing.T) {
 	a, fs := appWithPane()
-	press(a, "x") // close the pane? y / n
+	press(a, "x") // close the pane? y·⏎ yes · n·esc no
 	if a.mode != promptMode || a.prompt.kind != promptConfirm {
 		t.Fatal("x did not ask for confirmation")
 	}
@@ -151,6 +151,20 @@ func TestPasteNeverConfirms(t *testing.T) {
 		t.Fatal("y did not close the pane")
 	}
 }
+
+func TestEnterConfirmsEscDeclines(t *testing.T) {
+	a, fs := appWithPane()
+	press(a, "x")
+	a.onKeys([]key{{code: keyEsc}})
+	if a.mode != navMode || len(fs.ops(mux.OpClose)) != 0 {
+		t.Fatal("esc did not decline")
+	}
+	press(a, "x", "\r")
+	if a.mode != navMode || len(fs.ops(mux.OpClose)) != 1 {
+		t.Fatal("enter did not confirm")
+	}
+}
+
 
 func TestPasteInNavModeDoesNothing(t *testing.T) {
 	a, fs := appWithPane()

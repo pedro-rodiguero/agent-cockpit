@@ -88,7 +88,7 @@ func (a *App) undoComplete() {
 
 func (a *App) confirmDeleteTask(t tile) {
 	id, name, sid := t.taskID(), t.name(), t.sess.ID
-	a.confirm("delete "+name+"? · y / n", func() {
+	a.confirm("delete "+name+"? · y·⏎ yes · n·esc no", func() {
 		err := a.tasks.Update(time.Now(), func(l *todo.List) { l.Delete(id, time.Now()) })
 		if err == nil {
 			a.dropSession(sid)

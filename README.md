@@ -107,6 +107,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
 | `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |
 | drag | select text inside one pane, copied when you let go · click selects a card |
+| wheel | scroll a pane back through its history (5000 lines); scrolling to the bottom or typing returns to the live screen. A full-screen program gets arrow keys instead |
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |
 | `+` | new task: `#group` and `@date` (`today`, `tomorrow`, `25/12`, `2027-01-31`) are optional |

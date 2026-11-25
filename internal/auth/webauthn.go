@@ -199,8 +199,8 @@ func coseToPKIX(raw []byte) ([]byte, int, error) {
 		if crv != 1 || len(x) != 32 || len(y) != 32 {
 			return nil, 0, errWebAuthn
 		}
-		k := &ecdsa.PublicKey{Curve: elliptic.P256(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
-		if _, err := k.ECDH(); err != nil { // not on the curve
+		k, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), append(append([]byte{4}, x...), y...))
+		if err != nil { // not on the curve
 			return nil, 0, errWebAuthn
 		}
 		der, err := x509.MarshalPKIXPublicKey(k)

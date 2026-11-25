@@ -465,16 +465,18 @@ func (a *App) promptNewPane() {
 	if a.muxUnavailable() {
 		return
 	}
-	dir, _ := os.Getwd()
-	if t, ok := a.selected(); ok {
-		if t.pane != nil {
-			dir = t.pane.Cwd
-		} else if t.sess != nil && t.sess.Cwd != "" && !t.isItem() {
-			dir = t.sess.Cwd
-		}
-	}
-	text := tilde(dir)
+	text := newPaneDir()
 	a.openPrompt(&prompt{kind: promptNew, text: []rune(text), matches: dirMatches(text), matchedFor: text})
+}
+
+// newPaneDir is where the new pane prompt starts: the Desktop, or home when there is none. It ends in "/"
+// so the folders inside are listed right away.
+func newPaneDir() string {
+	home, _ := os.UserHomeDir()
+	if fi, err := os.Stat(filepath.Join(home, "Desktop")); err == nil && fi.IsDir() {
+		return "~/Desktop/"
+	}
+	return "~/"
 }
 
 func (a *App) promptReply() {

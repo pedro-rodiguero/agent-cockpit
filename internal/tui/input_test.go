@@ -182,6 +182,28 @@ func TestSideArrowsPickAgent(t *testing.T) {
 	}
 }
 
+func TestNewPaneStartsOnTheDesktop(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a, _ := appWithPane() // the selected pane is in /tmp, which must not matter
+	press(a, "n")
+	if got := string(a.prompt.text); got != "~/" {
+		t.Fatalf("without a Desktop: %q", got)
+	}
+	a.onKeys([]key{{code: keyEsc}})
+
+	if err := os.MkdirAll(filepath.Join(home, "Desktop", "proj"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	press(a, "n")
+	if got := string(a.prompt.text); got != "~/Desktop/" {
+		t.Fatalf("folder %q", got)
+	}
+	if len(a.prompt.matches) != 1 || a.prompt.matches[0] != "~/Desktop/proj/" {
+		t.Fatalf("matches %v", a.prompt.matches)
+	}
+}
+
 func TestPasteInNavModeDoesNothing(t *testing.T) {
 	a, fs := appWithPane()
 	press(a, "\x1b[200~xpq\x1b[201~")

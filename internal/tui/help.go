@@ -19,6 +19,7 @@ var helpKeys = [][]keyHint{
 		{"n", "new pane"},
 		{"x", "close a pane, stopping its agent; delete a task"},
 		{"ctrl-q", "leave a pane; every other key goes to the agent"},
+		{"ctrl-z", "zoom in or out of the pane you are typing into"},
 	},
 	{
 		{"+", "new task: \"call the venue @tomorrow #personal\""},
@@ -26,7 +27,7 @@ var helpKeys = [][]keyHint{
 		{"e", "edit the selected task"},
 	},
 	{
-		{"z", "zoom the selected card · esc leaves"},
+		{"z", "zoom the selected card · z or esc leaves; typing goes to a zoomed pane"},
 		{"!", "next card that needs you · a shows only those"},
 		{"v", "grid or list"},
 		{"t", "tab titles on or off"},

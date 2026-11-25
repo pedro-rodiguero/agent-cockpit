@@ -323,6 +323,11 @@ func (a *App) footer(w, y int) (string, cursor) {
 	switch {
 	case a.mode == insertMode:
 		foot += paint(cGoldHi, cBg, "typing into the agent   ") + key("ctrl-q", "back to cockpit")
+		if a.zoom {
+			foot += key("esc", "all panes")
+		} else {
+			foot += key("ctrl-z", "zoom")
+		}
 	case a.help:
 		foot += key("any key", "closes this")
 	default:

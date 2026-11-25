@@ -12,8 +12,13 @@ import (
 	"github.com/pedro-rodiguero/agent-cockpit/internal/term"
 )
 
-// leaveLetter with ctrl takes the keyboard back from a pane (ctrl-q). Every other key goes to the agent.
-const leaveLetter = "q"
+// leaveLetter with ctrl takes the keyboard back from a pane (ctrl-q), and zoomLetter with ctrl zooms in
+// or out of the pane being typed into (ctrl-z). Every other key goes to the agent, except Esc in a zoomed
+// pane, which goes back to all the panes.
+const (
+	leaveLetter = "q"
+	zoomLetter  = "z"
+)
 
 // action is what a key does in navigation mode.
 type action int
@@ -134,6 +139,11 @@ func (a *App) insertKey(k key) {
 	case k.isCtrl(leaveLetter):
 		a.flushTyped()
 		a.mode = navMode
+	case k.isCtrl(zoomLetter):
+		a.zoom = !a.zoom
+	case k.code == keyEsc && a.zoom:
+		a.flushTyped()
+		a.mode, a.zoom = navMode, false
 	case k.code == keyPaste:
 		a.flushTyped()
 		if t, ok := a.typingTarget(); ok {
@@ -168,6 +178,11 @@ func (a *App) typingTarget() (tile, bool) {
 func (a *App) navKey(k key) {
 	if a.help {
 		a.help = false
+		return
+	}
+	if a.typesIntoZoomedPane(k) {
+		a.mode = insertMode
+		a.insertKey(k)
 		return
 	}
 	if n, ok := cardNumber(k); ok {
@@ -239,6 +254,16 @@ func (a *App) navKey(k key) {
 	case actUndo:
 		a.undoComplete()
 	}
+}
+
+// typesIntoZoomedPane reports whether k starts typing into the zoomed pane: in a zoom on a live pane
+// every character and paste goes to the agent, except z, which leaves the zoom like Esc does.
+func (a *App) typesIntoZoomedPane(k key) bool {
+	if !a.zoom || a.view != gridView || k.isRune("z") || (k.code != keyRune && k.code != keyPaste) {
+		return false
+	}
+	t, ok := a.selected()
+	return ok && t.livePane() && a.mc != nil
 }
 
 // escape leaves zoom, or dismisses an alert.

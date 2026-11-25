@@ -63,7 +63,7 @@ func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, 
 		}
 		lines = append(lines, side+pad(row, iw, cBg)+side)
 	}
-	lines = append(lines, cardBottom(cw, border, insert))
+	lines = append(lines, cardBottom(cw, border, insert, a.zoom))
 	if cur.show {
 		cur.x++
 		cur.y++
@@ -136,10 +136,13 @@ func agentLabel(t tile) string {
 
 // cardBottom closes the card. While the person types into the card's pane it says how to leave; the
 // keys for a selected card are in the footer.
-func cardBottom(cw int, border rgb, insert bool) string {
+func cardBottom(cw int, border rgb, insert, zoom bool) string {
 	hint := ""
-	if insert {
-		hint = " typing into the agent · ctrl-q leaves "
+	switch {
+	case insert && zoom:
+		hint = " typing into the agent · esc all panes · ctrl-q leaves "
+	case insert:
+		hint = " typing into the agent · ctrl-z zoom · ctrl-q leaves "
 	}
 	if width(hint) > cw-4 {
 		hint = ""

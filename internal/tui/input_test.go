@@ -496,3 +496,45 @@ func TestSelectWaitsForTheSession(t *testing.T) {
 		t.Errorf("after the session showed up: sel %q pending %q zoom %v help %v", a.sel, a.pendingSelect, a.zoom, a.help)
 	}
 }
+
+func TestTypingIntoZoomedPane(t *testing.T) {
+	a, fs := appWithPane()
+	press(a, "z", "hi x")
+	in := fs.ops(mux.OpInput)
+	if a.mode != insertMode || len(in) == 0 || string(in[len(in)-1].Data) != "hi x" {
+		t.Fatalf("mode %v, input %+v", a.mode, in)
+	}
+	press(a, "z")
+	if !a.zoom || string(fs.ops(mux.OpInput)[len(fs.ops(mux.OpInput))-1].Data) != "z" {
+		t.Fatal("a z typed into the agent should reach it")
+	}
+	a.onKeys([]key{{code: keyEsc, raw: []byte{escByte}}})
+	if a.zoom || a.mode != navMode {
+		t.Fatalf("esc: zoom %v mode %v", a.zoom, a.mode)
+	}
+	for _, m := range fs.ops(mux.OpInput) {
+		if strings.Contains(string(m.Data), "\x1b") {
+			t.Fatal("esc reached the agent")
+		}
+	}
+}
+
+func TestZOutOfZoomBeforeTyping(t *testing.T) {
+	a, fs := appWithPane()
+	press(a, "z", "z")
+	if a.zoom || a.mode != navMode || len(fs.ops(mux.OpInput)) != 0 {
+		t.Fatalf("zoom %v mode %v input %+v", a.zoom, a.mode, fs.ops(mux.OpInput))
+	}
+}
+
+func TestCtrlZZoomsWhileTyping(t *testing.T) {
+	a, fs := appWithPane()
+	press(a, "\r", "\x1a")
+	if !a.zoom || a.mode != insertMode {
+		t.Fatalf("zoom %v mode %v", a.zoom, a.mode)
+	}
+	press(a, "\x1a")
+	if a.zoom || a.mode != insertMode || len(fs.ops(mux.OpInput)) != 0 {
+		t.Fatalf("ctrl-z again: zoom %v mode %v input %+v", a.zoom, a.mode, fs.ops(mux.OpInput))
+	}
+}

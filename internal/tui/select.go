@@ -148,16 +148,24 @@ func (a *App) wheel(m mouseEvent) {
 	id := t.pane.ID
 	back := a.scrollBack[id]
 	if scr := a.mc.Screen(id); scr != nil && scr.AltMode && back == 0 {
-		if t.livePane() {
+		if !t.livePane() {
+			return
+		}
+		if a.serverOlderThan(4) {
 			arrow := "\x1b[B"
 			if up {
 				arrow = "\x1b[A"
 			}
 			a.send(mux.Msg{Op: mux.OpInput, ID: id, Data: []byte(strings.Repeat(arrow, wheelStep))})
+			return
 		}
+		r, _ := a.regionAt(m.x, m.y)
+		x := min(max(0, m.x-r.x), max(0, t.pane.Cols-1))
+		y := min(max(0, m.y-r.y), max(0, t.pane.Rows-1))
+		a.send(mux.Msg{Op: mux.OpWheel, ID: id, Up: up, X: x, Y: y})
 		return
 	}
-	if a.serverLacksHistory() {
+	if a.serverOlderThan(3) {
 		a.say("scrolling back needs the newer pane server · it restarts on its own when its last pane closes")
 		return
 	}
@@ -192,14 +200,14 @@ func (a *App) tileAt(x, y int) (tile, bool) {
 	return tile{}, false
 }
 
-// serverLacksHistory reports whether the pane server is older than history requests.
-func (a *App) serverLacksHistory() bool {
-	c, ok := a.mc.(*mux.Client)
+// serverOlderThan reports whether the pane server is known to speak a protocol older than version.
+func (a *App) serverOlderThan(version int) bool {
+	c, ok := a.mc.(interface{ ServerVersion() (int, bool) })
 	if !ok {
 		return false
 	}
 	v, known := c.ServerVersion()
-	return known && v < 3
+	return known && v < version
 }
 
 // selectedText is the text under the selection, each row with its trailing blanks removed.

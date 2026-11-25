@@ -20,6 +20,7 @@ import (
 type fakeServer struct {
 	mu      sync.Mutex
 	panes   []mux.PaneInfo
+	version int
 	sent    []mux.Msg
 	screen  *mux.Screen
 	history *mux.Screen
@@ -35,6 +36,9 @@ func (f *fakeServer) Panes() []mux.PaneInfo      { return f.panes }
 func (f *fakeServer) Screen(string) *mux.Screen  { return f.screen }
 func (f *fakeServer) History(string) *mux.Screen { return f.history }
 func (f *fakeServer) Close() error               { return nil }
+
+// ServerVersion is the version set in f, unknown when it is 0.
+func (f *fakeServer) ServerVersion() (int, bool) { return f.version, f.version > 0 }
 func (f *fakeServer) ops(op string) []mux.Msg {
 	f.mu.Lock()
 	defer f.mu.Unlock()

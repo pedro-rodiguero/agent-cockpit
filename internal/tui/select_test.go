@@ -117,13 +117,30 @@ func TestWheelScrollsThePaneThroughItsHistory(t *testing.T) {
 	}
 }
 
-func TestWheelOnAlternateScreenSendsArrows(t *testing.T) {
+func TestWheelOnAlternateScreenGoesToTheProgram(t *testing.T) {
 	a, fs := appWithPane()
+	fs.panes[0].Cols, fs.panes[0].Rows = 80, 24
+	a.rebuild()
+	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"full screen app"}, AltMode: true}
+	c := a.lay.cell(0)
+	press(a, mouse(mouseWheel, c.x+3, c.y+2, false), mouse(mouseWheel+1, c.x+3, c.y+2, false))
+	w := fs.ops(mux.OpWheel)
+	if len(w) != 2 || !w[0].Up || w[1].Up || w[0].X != 2 || w[0].Y != 1 || w[0].ID != "p1" {
+		t.Fatalf("wheel %+v", w)
+	}
+	if len(fs.ops(mux.OpInput)) != 0 || len(fs.ops(mux.OpHistory)) != 0 {
+		t.Fatal("also sent keys or asked for history")
+	}
+}
+
+func TestWheelOnAlternateScreenSendsArrowsToAnOldServer(t *testing.T) {
+	a, fs := appWithPane()
+	fs.version = 3
 	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"full screen app"}, AltMode: true}
 	c := a.lay.cell(0)
 	press(a, mouse(mouseWheel, c.x+3, c.y+2, false))
 	in := fs.ops(mux.OpInput)
-	if len(in) != 1 || string(in[0].Data) != "\x1b[A\x1b[A\x1b[A" || len(fs.ops(mux.OpHistory)) != 0 {
+	if len(in) != 1 || string(in[0].Data) != "\x1b[A\x1b[A\x1b[A" || len(fs.ops(mux.OpWheel)) != 0 {
 		t.Fatalf("inputs %+v", in)
 	}
 }

@@ -10,7 +10,7 @@ var helpKeys = [][]keyHint{
 		{"1–9", "card on this page"},
 		{"[ ]", "previous and next page · g G first and last"},
 		{"click", "select a card · drag selects text in one pane, copied on release"},
-		{"wheel", "scroll a pane back through its history · typing returns to the live screen"},
+		{"wheel", "scroll a pane back through its history, or a full-screen program like Claude Code itself · typing returns to the live screen"},
 	},
 	{
 		{"⏎", "the obvious thing: type into a pane, continue a tab's session here,"},

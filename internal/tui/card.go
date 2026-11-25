@@ -9,6 +9,7 @@ import (
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
 // A session card, top to bottom:
@@ -189,6 +190,11 @@ func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
 	if scr == nil {
 		return []string{paint(cMuted, cBg, " starting "+pn.Agent+"…")}, cur
 	}
+	if back := a.scrollBack[pn.ID]; back > 0 {
+		if h := a.mc.History(pn.ID); h != nil && h.Back > 0 {
+			return historyContent(h, iw, ih), cur
+		}
+	}
 	body := make([]string, 0, ih)
 	for i := 0; i < ih && i < len(scr.Lines); i++ {
 		body = append(body, scr.Lines[i])
@@ -204,6 +210,20 @@ func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
 		cur = cursor{x: scr.CX, y: scr.CY, show: true}
 	}
 	return body, cur
+}
+
+// historyContent is a pane scrolled up into its history, with a bar saying how far and how to return.
+func historyContent(h *mux.Screen, iw, ih int) []string {
+	body := make([]string, 0, ih)
+	for i := 0; i < ih && i < len(h.Lines); i++ {
+		body = append(body, h.Lines[i])
+	}
+	for len(body) < ih {
+		body = append(body, "")
+	}
+	msg := fmt.Sprintf(" ↑ %d of %d lines up · scroll down or type to return ", h.Back, h.MaxBack)
+	body[ih-1] = pad(paint(cGold, cPanel, msg), iw, cPanel)
+	return body
 }
 
 // sessionContent is the inside of a session or inbox card.

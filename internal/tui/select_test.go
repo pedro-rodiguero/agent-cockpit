@@ -2,9 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
 func mouse(btn, x, y int, release bool) string {
@@ -83,4 +86,49 @@ func TestSelectedText(t *testing.T) {
 	if got := a.selectedText(lines); got != "efgh\nmnopqr\nwx" {
 		t.Fatalf("got %q", got)
 	}
+}
+
+func TestWheelScrollsThePaneThroughItsHistory(t *testing.T) {
+	a, fs := appWithPane()
+	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"live"}}
+	c := a.lay.cell(0)
+	up, down := mouse(mouseWheel, c.x+3, c.y+2, false), mouse(mouseWheel+1, c.x+3, c.y+2, false)
+
+	press(a, up)
+	if h := fs.ops(mux.OpHistory); len(h) != 1 || h[0].ID != "p1" || h[0].Rows != wheelStep {
+		t.Fatalf("wheel up should ask for history: %+v", h)
+	}
+	fs.history = &mux.Screen{ID: "p1", Lines: []string{"older"}, Back: 3, MaxBack: 5}
+	if out := ansi.Strip(strings.Join(composed(a), "\n")); !strings.Contains(out, "older") || !strings.Contains(out, "↑ 3 of 5 lines up") {
+		t.Fatalf("the pane should show its history:\n%s", out)
+	}
+	press(a, up, up)
+	if a.scrollBack["p1"] != 5 {
+		t.Fatalf("scrolling stops at the first line: back %d", a.scrollBack["p1"])
+	}
+	press(a, down, down)
+	if _, scrolled := a.scrollBack["p1"]; scrolled {
+		t.Fatalf("scrolling down to the bottom should go live: back %d", a.scrollBack["p1"])
+	}
+
+	press(a, up, "\r", "x")
+	if _, scrolled := a.scrollBack["p1"]; scrolled {
+		t.Fatal("typing into the pane should return it to the live screen")
+	}
+}
+
+func TestWheelOnAlternateScreenSendsArrows(t *testing.T) {
+	a, fs := appWithPane()
+	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"full screen app"}, AltMode: true}
+	c := a.lay.cell(0)
+	press(a, mouse(mouseWheel, c.x+3, c.y+2, false))
+	in := fs.ops(mux.OpInput)
+	if len(in) != 1 || string(in[0].Data) != "\x1b[A\x1b[A\x1b[A" || len(fs.ops(mux.OpHistory)) != 0 {
+		t.Fatalf("inputs %+v", in)
+	}
+}
+
+func composed(a *App) []string {
+	lines, _ := a.compose()
+	return lines
 }

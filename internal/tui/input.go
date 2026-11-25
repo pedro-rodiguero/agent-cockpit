@@ -147,6 +147,7 @@ func (a *App) insertKey(k key) {
 	case k.code == keyPaste:
 		a.flushTyped()
 		if t, ok := a.typingTarget(); ok {
+			delete(a.scrollBack, t.pane.ID)
 			// The server adds bracketed-paste markers only if the program in the pane asked for them.
 			a.send(mux.Msg{Op: mux.OpPaste, ID: t.pane.ID, Data: []byte(k.text)})
 		}
@@ -160,6 +161,7 @@ func (a *App) flushTyped() {
 		return
 	}
 	if t, ok := a.typingTarget(); ok {
+		delete(a.scrollBack, t.pane.ID)
 		a.send(mux.Msg{Op: mux.OpInput, ID: t.pane.ID, Data: a.typed})
 	}
 	a.typed = nil

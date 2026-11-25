@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
 // Mouse buttons as SGR mouse reporting encodes them.
@@ -98,11 +100,12 @@ func (a *App) regionAt(x, y int) (rect, int) {
 	return body, -1
 }
 
-// onMouse starts, extends or finishes a selection. A click without a drag selects the card under it.
-// The wheel does nothing: the panes keep no scrollback for it to move through.
+// onMouse starts, extends or finishes a selection. A click without a drag selects the card under it,
+// and the wheel scrolls the pane under the pointer.
 func (a *App) onMouse(m mouseEvent) {
 	switch {
 	case m.btn >= mouseWheel:
+		a.wheel(m)
 	case m.btn == mouseLeft && !m.release:
 		region, _ := a.regionAt(m.x, m.y)
 		a.selecting = &selection{region: region, ax: m.x, ay: m.y, bx: m.x, by: m.y, dragging: true}
@@ -125,6 +128,78 @@ func (a *App) onMouse(m mouseEvent) {
 		}
 		a.copySelection()
 	}
+}
+
+// wheelStep is how many lines one notch of the wheel scrolls.
+const wheelStep = 3
+
+// mouseMods are the bits SGR mouse reporting adds to the button for shift, alt and ctrl.
+const mouseMods = 4 | 8 | 16
+
+// wheel scrolls the pane under the pointer up into its history and back down to the live screen. A
+// program on the alternate screen has no history there, so it gets arrow keys instead, as terminals
+// do.
+func (a *App) wheel(m mouseEvent) {
+	up := m.btn&^mouseMods == mouseWheel
+	t, ok := a.tileAt(m.x, m.y)
+	if !ok || t.pane == nil || a.mc == nil {
+		return
+	}
+	id := t.pane.ID
+	back := a.scrollBack[id]
+	if scr := a.mc.Screen(id); scr != nil && scr.AltMode && back == 0 {
+		if t.livePane() {
+			arrow := "\x1b[B"
+			if up {
+				arrow = "\x1b[A"
+			}
+			a.send(mux.Msg{Op: mux.OpInput, ID: id, Data: []byte(strings.Repeat(arrow, wheelStep))})
+		}
+		return
+	}
+	if a.serverLacksHistory() {
+		a.say("scrolling back needs the newer pane server · it restarts on its own when its last pane closes")
+		return
+	}
+	if up {
+		back += wheelStep
+	} else {
+		back -= wheelStep
+	}
+	if h := a.mc.History(id); h != nil {
+		back = min(back, h.MaxBack)
+	}
+	if back <= 0 {
+		delete(a.scrollBack, id)
+		return
+	}
+	if a.scrollBack == nil {
+		a.scrollBack = map[string]int{}
+	}
+	a.scrollBack[id] = back
+	a.send(mux.Msg{Op: mux.OpHistory, ID: id, Rows: back})
+}
+
+// tileAt is the tile drawn at (x, y): a card in the grid, or the selected tile, whose pane fills the
+// zoom and the list's reading pane.
+func (a *App) tileAt(x, y int) (tile, bool) {
+	if _, i := a.regionAt(x, y); i >= 0 && i < len(a.tiles) && a.view == gridView && !a.zoom {
+		return a.tiles[i], true
+	}
+	if a.lay.bodyTop <= y && y < a.lay.bodyTop+a.lay.bodyH && (a.view == listView || a.zoom) {
+		return a.selected()
+	}
+	return tile{}, false
+}
+
+// serverLacksHistory reports whether the pane server is older than history requests.
+func (a *App) serverLacksHistory() bool {
+	c, ok := a.mc.(*mux.Client)
+	if !ok {
+		return false
+	}
+	v, known := c.ServerVersion()
+	return known && v < 3
 }
 
 // selectedText is the text under the selection, each row with its trailing blanks removed.

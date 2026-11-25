@@ -18,9 +18,11 @@ import (
 // fakeServer records what the dashboard sends instead of talking to `cockpit serve`. Like the real
 // client, it is safe to Send from any goroutine: moving a session sends from a background goroutine.
 type fakeServer struct {
-	mu    sync.Mutex
-	panes []mux.PaneInfo
-	sent  []mux.Msg
+	mu      sync.Mutex
+	panes   []mux.PaneInfo
+	sent    []mux.Msg
+	screen  *mux.Screen
+	history *mux.Screen
 }
 
 func (f *fakeServer) Send(m mux.Msg) error {
@@ -29,9 +31,10 @@ func (f *fakeServer) Send(m mux.Msg) error {
 	f.sent = append(f.sent, m)
 	return nil
 }
-func (f *fakeServer) Panes() []mux.PaneInfo     { return f.panes }
-func (f *fakeServer) Screen(string) *mux.Screen { return nil }
-func (f *fakeServer) Close() error              { return nil }
+func (f *fakeServer) Panes() []mux.PaneInfo      { return f.panes }
+func (f *fakeServer) Screen(string) *mux.Screen  { return f.screen }
+func (f *fakeServer) History(string) *mux.Screen { return f.history }
+func (f *fakeServer) Close() error               { return nil }
 func (f *fakeServer) ops(op string) []mux.Msg {
 	f.mu.Lock()
 	defer f.mu.Unlock()

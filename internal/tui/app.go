@@ -89,6 +89,7 @@ type paneServer interface {
 	Send(mux.Msg) error
 	Panes() []mux.PaneInfo
 	Screen(id string) *mux.Screen
+	History(id string) *mux.Screen
 	Close() error
 }
 
@@ -139,6 +140,7 @@ type App struct {
 	resized       map[string][2]int        // pane ID → the size last requested for it
 	pendingResume string                   // how to resume a moved session by hand, until its pane exists
 	pendingMoves  map[string]int           // session ID → pid of sessions to move into a pane when their turn ends
+	scrollBack    map[string]int           // pane ID → lines the pane is scrolled up into its history; absent when live
 	tasks         *todo.Store              // cockpit's own to-do list
 	lastDone      string                   // the task u reopens
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval

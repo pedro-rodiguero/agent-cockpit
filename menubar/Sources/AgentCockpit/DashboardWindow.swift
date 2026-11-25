@@ -117,7 +117,7 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
     }
 
     private func makeTerminal(frame: NSRect) -> LocalProcessTerminalView {
-        let t = LocalProcessTerminalView(frame: frame)
+        let t = DropTerminalView(frame: frame)
         t.autoresizingMask = [.width, .height]
         t.processDelegate = self
         t.optionAsMetaKey = false // option types accented characters, as in any Mac text field

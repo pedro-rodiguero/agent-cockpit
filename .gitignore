@@ -2,3 +2,8 @@ bin/
 *.ans
 menubar/.build/
 menubar/.build-*/
+dist/
+zap/
+.DS_Store
+*.out
+*.test

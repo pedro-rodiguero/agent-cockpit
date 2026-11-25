@@ -58,7 +58,7 @@ cat >"$PLIST" <<EOF
 </dict></plist>
 EOF
 
-pkill -x AgentCockpit 2>/dev/null || true
+pkill -f "$APP/Contents/MacOS/AgentCockpit" 2>/dev/null || true
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "✓ installed $PREFIX/cockpit and $APP (opens at login)"

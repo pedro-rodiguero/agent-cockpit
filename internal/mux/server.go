@@ -49,6 +49,7 @@ type pane struct {
 	cmd *exec.Cmd
 	pty *os.File
 	emu *vt.SafeEmulator
+	osc oscFilter // used by pump only
 
 	mu    sync.Mutex // guards info, dirty and paste
 	info  PaneInfo
@@ -296,13 +297,15 @@ func (s *Server) spawn(m Msg) (string, error) {
 	s.changed = true
 	s.mu.Unlock()
 
+	setTitle := func(t string) {
+		p.mu.Lock()
+		p.info.Title = t
+		p.mu.Unlock()
+		s.touch()
+	}
+	p.osc.title = setTitle
 	emu.SetCallbacks(vt.Callbacks{
-		Title: func(t string) {
-			p.mu.Lock()
-			p.info.Title = t
-			p.mu.Unlock()
-			s.touch()
-		},
+		Title: setTitle,
 		Bell: func() {
 			p.mu.Lock()
 			p.info.Bell = time.Now()
@@ -336,7 +339,7 @@ func (s *Server) pump(p *pane) {
 	for {
 		n, err := p.pty.Read(buf)
 		if n > 0 {
-			_, _ = p.emu.Write(buf[:n])
+			_, _ = p.emu.Write(p.osc.feed(buf[:n]))
 			p.mu.Lock()
 			p.dirty = true
 			p.paste.observe(buf[:n])

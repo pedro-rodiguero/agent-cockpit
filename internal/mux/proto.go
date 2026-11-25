@@ -10,10 +10,11 @@ import (
 	"time"
 )
 
-// ProtocolVersion is the version of the messages below. The server announces it on attach, so a
-// dashboard can tell a server older than itself, which ignores requests it does not know. Servers from
-// before version 1 announce nothing.
-const ProtocolVersion = 1
+// ProtocolVersion is the version of the messages below, raised too when the server changes in a way a
+// running one should be replaced for. The server announces it on attach, so a dashboard can tell a
+// server older than itself, which ignores requests it does not know. Servers from before version 1
+// announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter).
+const ProtocolVersion = 2
 
 // Operations. Dashboards send attach, spawn, input, paste, resize, close and shutdown; the server sends
 // hello, panes, screen, spawned and error. Anyone may send select, which the server passes on to every

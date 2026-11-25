@@ -118,6 +118,9 @@ func runPanes(args []string) error {
 	// On attach the server sends the pane list followed by one screen per pane.
 	ready := make(chan struct{}, 1)
 	mc.OnUpdate = func(mux.Msg) {
+		if _, attached := mc.ServerVersion(); !attached {
+			return // the hello comes first, before there is a pane list to print
+		}
 		panes := mc.Panes()
 		for _, p := range panes {
 			if mc.Screen(p.ID) == nil {

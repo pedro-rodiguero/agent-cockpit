@@ -32,6 +32,7 @@ Every message has an `op`; the other fields depend on it.
 | `close` | `id` | `SIGHUP` the program (then `SIGKILL` after 3s) and drop the pane |
 | `shutdown` | | exit, so a newer server can take over; refused with `error` while a pane's program is running |
 | `history` | `id`, `rows` | ask for the pane's screen as it was `rows` lines further up; replies `history` |
+| `wheel` | `id`, `x`, `y`, `up` | turn the wheel one notch at column `x`, row `y` (from 0): a mouse report if the program asked for mouse events (DECSET 9, 1000, 1002 or 1003; SGR encoding with 1006), else three arrow keys if it is on the alternate screen, else nothing |
 | `select` | `id` | pass the request on to every attached dashboard, which selects session `id` (or the pane it runs in) once it has collected it. Any connection may send it without attaching: `cockpit select` does |
 
 `agent` is one of `claude`, `codex`, `agy`, `shell`. The program runs through the user's login shell
@@ -60,7 +61,8 @@ as is. `cx`/`cy` is the cursor, and `cursor` says whether the program wants it s
 The protocol has a version, `ProtocolVersion` in `proto.go`, raised whenever a message is added. A server
 ignores requests it does not know, so a dashboard compares the server's `hello` with its own version:
 when the server is older, the dashboard sends `shutdown` as soon as no pane's program is running and
-connects again, which starts the newer server. Until then its footer says why. Servers from before
+connects again, which starts the newer server. Until then its footer says why. Version 3 added
+`history` and version 4 `wheel`; a dashboard sends arrow keys for the wheel to a server older than 4. Servers from before
 version 1 send no `hello` and do not know `shutdown`; the footer says to restart them by hand.
 
 ## Flow control

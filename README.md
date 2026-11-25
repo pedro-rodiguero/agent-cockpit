@@ -101,11 +101,12 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `←↑↓→` `hjkl` | move; right from the last column enters the rail · `tab` next · `1`–`9` card on this page · `[` `]` page |
 | `⏎` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
 | `o` | go to the session's terminal tab |
-| `ctrl-q` | leave a pane (every other key goes to the agent) |
-| `n` | new pane: `↑↓` picks the agent (one entry per Claude profile), `tab` completes the folder |
+| `ctrl-q` | leave a pane (every other key goes to the agent) · `ctrl-z` zooms in or out of it |
+| `n` | new pane: `←→` picks the agent (one entry per Claude profile), `tab` completes the folder |
 | `r` | send a message to a Claude Code session |
-| `z` | zoom the selected card |
-| `x` | close a pane (stops its agent) |
+| `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
+| `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |
+| drag | select text inside one pane, copied when you let go · click selects a card |
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |
 | `+` | new task: `#group` and `@date` (`today`, `tomorrow`, `25/12`, `2027-01-31`) are optional |

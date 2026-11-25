@@ -658,9 +658,9 @@ func (a *App) promptKey(k key) {
 		pr.text = nil
 	case k.isCtrl("w"):
 		pr.deleteWord()
-	case pr.kind == promptNew && (k.code == keyUp || k.code == keyShiftTab):
+	case pr.kind == promptNew && (k.code == keyUp || k.code == keyLeft || k.code == keyShiftTab):
 		pr.agent = (pr.agent + len(a.launchers) - 1) % len(a.launchers)
-	case pr.kind == promptNew && k.code == keyDown:
+	case pr.kind == promptNew && (k.code == keyDown || k.code == keyRight):
 		pr.agent = (pr.agent + 1) % len(a.launchers)
 	case pr.kind == promptNew && k.code == keyTab:
 		pr.text = []rune(completeDir(string(pr.text)))

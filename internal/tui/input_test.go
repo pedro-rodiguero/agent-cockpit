@@ -165,6 +165,19 @@ func TestEnterConfirmsEscDeclines(t *testing.T) {
 	}
 }
 
+func TestSideArrowsPickAgent(t *testing.T) {
+	a, _ := appWithPane()
+	a.launchers = []launcher{{label: "a"}, {label: "b"}, {label: "c"}}
+	a.openPrompt(&prompt{kind: promptNew})
+	press(a, "\x1b[C")
+	if a.prompt.agent != 1 {
+		t.Fatalf("right: agent %d", a.prompt.agent)
+	}
+	press(a, "\x1b[D", "\x1b[D")
+	if a.prompt.agent != 2 {
+		t.Fatalf("left twice: agent %d", a.prompt.agent)
+	}
+}
 
 func TestPasteInNavModeDoesNothing(t *testing.T) {
 	a, fs := appWithPane()

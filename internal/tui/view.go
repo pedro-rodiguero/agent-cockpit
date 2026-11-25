@@ -389,7 +389,7 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 		}
 		line += paint(cGold, cPanel, "  dir ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
-		line += paint(cFaint, cPanel, "   ↑↓ agent · tab complete · ⏎ start · esc cancel")
+		line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
 	case promptReply, promptTask:
 		line = paint(cGold, cPanel, " "+pr.label+" ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}

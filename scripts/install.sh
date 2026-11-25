@@ -58,7 +58,27 @@ cat >"$PLIST" <<EOF
 </dict></plist>
 EOF
 
-pkill -f "$APP/Contents/MacOS/AgentCockpit" 2>/dev/null || true
+# Stop the running app and wait until it has exited: opened while the old one is still quitting, the
+# app would only bring that one forward and the new build would not start. Its dashboard, if open, is
+# opened again afterwards.
+BIN="$APP/Contents/MacOS/AgentCockpit"
+had_dashboard=0
+for pid in $(pgrep -f "$BIN" || true); do
+  pgrep -P "$pid" -f "$PREFIX/cockpit" >/dev/null && had_dashboard=1
+  kill "$pid" 2>/dev/null || true
+done
+for _ in $(seq 50); do
+  pgrep -f "$BIN" >/dev/null || break
+  sleep 0.1
+done
+pkill -9 -f "$BIN" 2>/dev/null || true
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
+if [ "$had_dashboard" = 1 ]; then
+  for _ in $(seq 50); do
+    pgrep -f "$BIN" >/dev/null && break
+    sleep 0.1
+  done
+  open -a "$APP"
+fi
 echo "✓ installed $PREFIX/cockpit and $APP (opens at login)"

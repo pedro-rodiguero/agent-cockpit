@@ -1,6 +1,6 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
-STATICCHECK := honnef.co/go/tools/cmd/staticcheck@2025.1.1
+STATICCHECK := honnef.co/go/tools/cmd/staticcheck@2026.2.2
 
 .PHONY: build test lint menubar install clean
 

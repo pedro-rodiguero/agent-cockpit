@@ -42,6 +42,7 @@ type claudeRecord struct {
 	Cwd             string `json:"cwd"`
 	StartedAt       int64  `json:"startedAt"`
 	Kind            string `json:"kind"`
+	Entrypoint      string `json:"entrypoint"`
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	UpdatedAt       int64  `json:"updatedAt"`
@@ -68,6 +69,11 @@ func (c *Claude) Collect(ctx context.Context, env *Env) ([]model.Session, error)
 			}
 			var r claudeRecord
 			if json.Unmarshal(b, &r) != nil || r.PID == 0 {
+				continue
+			}
+			// Headless runs (claude -p, the Agent SDK) write a session file too, and would flash up as a
+			// card for the few seconds they last.
+			if strings.HasPrefix(r.Entrypoint, "sdk") {
 				continue
 			}
 			// The file outlives a crashed process, and pids get reused.

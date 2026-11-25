@@ -16,12 +16,16 @@ func TestClaudeCollect(t *testing.T) {
 	// A leftover file from a process that is gone, and one whose pid now belongs to something else.
 	write(t, filepath.Join(dir, "sessions", "1111.json"), `{"pid":1111,"sessionId":"dead","status":"busy"}`)
 	write(t, filepath.Join(dir, "sessions", "2222.json"), `{"pid":2222,"sessionId":"reused","status":"busy"}`)
+	// A headless claude -p run.
+	write(t, filepath.Join(dir, "sessions", "3333.json"), `{"pid":3333,"sessionId":"headless","kind":"interactive",
+		"entrypoint":"sdk-cli","status":"busy"}`)
 	write(t, filepath.Join(dir, "projects", "-src-api", "s-1.jsonl"),
 		`{"type":"ai-title","aiTitle":"Add rate limiting"}`+"\n"+`{"type":"last-prompt","lastPrompt":"limit  logins\nper IP"}`+"\n")
 
 	env := &Env{Now: time.Now(), Procs: map[int]Proc{
 		4242: {PID: 4242, TTY: "ttys004", Args: "claude --resume"},
 		2222: {PID: 2222, Args: "vim"},
+		3333: {PID: 3333, Args: "claude -p hi"},
 	}}
 	got, err := (&Claude{Dirs: []string{dir}}).Collect(context.Background(), env)
 	if err != nil {

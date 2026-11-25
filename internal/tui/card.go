@@ -197,7 +197,7 @@ func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
 	}
 	body := make([]string, 0, ih)
 	for i := 0; i < ih && i < len(scr.Lines); i++ {
-		body = append(body, scr.Lines[i])
+		body = append(body, seeThrough(scr.Lines[i]))
 	}
 	if pn.Exited {
 		msg := fmt.Sprintf(" exited · code %d · ⏎ reopens it · x closes it ", pn.ExitCode)
@@ -212,11 +212,29 @@ func (a *App) paneContent(t tile, iw, ih int, insert bool) ([]string, cursor) {
 	return body, cur
 }
 
+// paneBg is the background the pane server paints a cell the program left on its default background.
+var paneBg = func() rgb {
+	r, g, b, _ := mux.DefaultBg.RGBA()
+	return rgb{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
+}()
+
+var paneBgSeq = fmt.Sprintf(";48;2;%d;%d;%dm", paneBg.r, paneBg.g, paneBg.b)
+
+// seeThrough leaves a pane line's default background to the terminal when the page's is, as it is in a
+// translucent window: a terminal paints any explicit color opaque, so the panes alone would hide the
+// desktop. Only where that background is the page's own, in the dark theme, so nothing changes color.
+func seeThrough(line string) string {
+	if !terminalBg || cBg != paneBg {
+		return line
+	}
+	return strings.ReplaceAll(line, paneBgSeq, "m")
+}
+
 // historyContent is a pane scrolled up into its history, with a bar saying how far and how to return.
 func historyContent(h *mux.Screen, iw, ih int) []string {
 	body := make([]string, 0, ih)
 	for i := 0; i < ih && i < len(h.Lines); i++ {
-		body = append(body, h.Lines[i])
+		body = append(body, seeThrough(h.Lines[i]))
 	}
 	for len(body) < ih {
 		body = append(body, "")

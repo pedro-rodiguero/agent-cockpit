@@ -157,3 +157,20 @@ func TestIdleCardShowsLastReplyFromItsStart(t *testing.T) {
 		t.Errorf("busy rows: %q", rows)
 	}
 }
+
+func TestPanesSeeThroughATranslucentWindow(t *testing.T) {
+	defer useTheme(appearance{})
+	plain := "\x1b[0;38;2;233;223;201;48;2;20;17;12mhi\x1b[0;38;2;0;0;0;48;2;201;165;78mX\x1b[0m"
+	if got := seeThrough(plain); got != plain {
+		t.Fatalf("opaque window changed: %q", got)
+	}
+	useTheme(appearance{terminalBg: true})
+	want := "\x1b[0;38;2;233;223;201mhi\x1b[0;38;2;0;0;0;48;2;201;165;78mX\x1b[0m"
+	if got := seeThrough(plain); got != want {
+		t.Fatalf("translucent: %q", got)
+	}
+	useTheme(appearance{terminalBg: true, light: true})
+	if got := seeThrough(plain); got != plain {
+		t.Fatalf("light theme changed: %q", got)
+	}
+}

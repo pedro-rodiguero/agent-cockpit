@@ -143,3 +143,38 @@ func TestSocketPathStaysShort(t *testing.T) {
 		t.Errorf("socket path is %d bytes: %s", len(p), p)
 	}
 }
+
+func TestHistoryReadsTheScrollback(t *testing.T) {
+	s := newServer()
+	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 20, Rows: 5,
+		Args: []string{"/bin/sh", "-c", `i=1; while [ $i -le 10 ]; do printf 'line %d\r\n' $i; i=$((i+1)); done; printf 'end'; sleep 0.3`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := s.get(id)
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		p.mu.Lock()
+		done := p.info.Exited
+		p.mu.Unlock()
+		if done {
+			break
+		}
+	}
+	rows := func(scr *Screen) (out []string) {
+		for _, l := range scr.Lines {
+			out = append(out, strings.TrimSpace(ansi.Strip(l)))
+		}
+		return out
+	}
+	if got := strings.Join(rows(p.history(0)), "|"); got != "line 7|line 8|line 9|line 10|end" {
+		t.Fatalf("history(0) = %q", got)
+	}
+	h := p.history(3)
+	if got := strings.Join(rows(h), "|"); got != "line 4|line 5|line 6|line 7|line 8" || h.Back != 3 || h.MaxBack != 6 {
+		t.Fatalf("history(3) = %q back %d max %d", got, h.Back, h.MaxBack)
+	}
+	if h := p.history(100); h.Back != 6 || strings.TrimSpace(ansi.Strip(h.Lines[0])) != "line 1" {
+		t.Fatalf("history(100) should stop at the first line: back %d, %q", h.Back, ansi.Strip(h.Lines[0]))
+	}
+	s.close(id)
+}

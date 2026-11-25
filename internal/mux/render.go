@@ -47,13 +47,18 @@ func toRGB(c color.Color) (rgb, bool) {
 // renderLines draws the visible screen as one ANSI string per row, exactly cols cells wide, with
 // every default color replaced by the theme so the result composes on the dashboard background.
 func renderLines(e *vt.SafeEmulator, cols, rows int) []string {
+	return renderCells(e.CellAt, cols, rows)
+}
+
+// renderCells is renderLines for any grid of cells, such as the scrollback followed by the screen.
+func renderCells(cellAt func(x, y int) *uv.Cell, cols, rows int) []string {
 	out := make([]string, rows)
 	var sb strings.Builder
 	for y := 0; y < rows; y++ {
 		sb.Reset()
 		var last string
 		for x := 0; x < cols; {
-			c := e.CellAt(x, y)
+			c := cellAt(x, y)
 			content, width := " ", 1
 			var st uv.Style
 			if c != nil {

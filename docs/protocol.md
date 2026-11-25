@@ -31,6 +31,7 @@ Every message has an `op`; the other fields depend on it.
 | `resize` | `id`, `cols`, `rows` | resize the pane; the program receives `SIGWINCH` |
 | `close` | `id` | `SIGHUP` the program (then `SIGKILL` after 3s) and drop the pane |
 | `shutdown` | | exit, so a newer server can take over; refused with `error` while a pane's program is running |
+| `history` | `id`, `rows` | ask for the pane's screen as it was `rows` lines further up; replies `history` |
 | `select` | `id` | pass the request on to every attached dashboard, which selects session `id` (or the pane it runs in) once it has collected it. Any connection may send it without attaching: `cockpit select` does |
 
 `agent` is one of `claude`, `codex`, `agy`, `shell`. The program runs through the user's login shell
@@ -46,6 +47,7 @@ Code's session markers, are removed first.
 | `panes` | `panes` | on attach and whenever the list or a pane's title, size or exit status changes |
 | `screen` | `screen` | on attach and whenever a pane's screen changes, at most about 30 times a second |
 | `spawned` | `id` | reply to `spawn` |
+| `history` | `screen` | reply to `history`: rows from the scrollback (up to 5000 lines) followed by the screen, with `back`, the request clamped to what the scrollback holds, and `maxBack`, how much it holds |
 | `error` | `err` | reply to a request that failed |
 | `select` | `id` | another connection sent `select` |
 

@@ -23,8 +23,9 @@ type Client struct {
 	mu       sync.Mutex
 	panes    []PaneInfo
 	screens  map[string]*Screen
-	version  int  // the server's ProtocolVersion; 0 for a server from before versions
-	attached bool // the first pane list arrived, so version is known
+	history  map[string]*Screen // the latest answer to a history request, per pane
+	version  int                // the server's ProtocolVersion; 0 for a server from before versions
+	attached bool               // the first pane list arrived, so version is known
 	OnUpdate func(Msg)
 }
 
@@ -67,7 +68,7 @@ func Dial() (*Client, error) {
 }
 
 func newClient(conn net.Conn) *Client {
-	return &Client{conn: conn, enc: json.NewEncoder(conn), screens: map[string]*Screen{}}
+	return &Client{conn: conn, enc: json.NewEncoder(conn), screens: map[string]*Screen{}, history: map[string]*Screen{}}
 }
 
 // startServer launches `cockpit serve` detached from this terminal (its own session), so closing the
@@ -124,11 +125,16 @@ func (c *Client) Run() error {
 			for id := range c.screens {
 				if !alive[id] {
 					delete(c.screens, id)
+					delete(c.history, id)
 				}
 			}
 		case OpScreen:
 			if m.Screen != nil {
 				c.screens[m.Screen.ID] = m.Screen
+			}
+		case OpHistory:
+			if m.Screen != nil {
+				c.history[m.Screen.ID] = m.Screen
 			}
 		}
 		c.mu.Unlock()
@@ -158,6 +164,13 @@ func (c *Client) Screen(id string) *Screen {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.screens[id]
+}
+
+// History returns the latest answer to a history request for pane id, or nil.
+func (c *Client) History(id string) *Screen {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.history[id]
 }
 
 func (c *Client) Close() error { return c.conn.Close() }

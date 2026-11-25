@@ -13,8 +13,8 @@ import (
 // ProtocolVersion is the version of the messages below, raised too when the server changes in a way a
 // running one should be replaced for. The server announces it on attach, so a dashboard can tell a
 // server older than itself, which ignores requests it does not know. Servers from before version 1
-// announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter).
-const ProtocolVersion = 2
+// announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter). Version 3: history.
+const ProtocolVersion = 3
 
 // Operations. Dashboards send attach, spawn, input, paste, resize, close and shutdown; the server sends
 // hello, panes, screen, spawned and error. Anyone may send select, which the server passes on to every
@@ -27,6 +27,9 @@ const (
 	OpResize = "resize" // resize pane ID to Cols×Rows
 	OpClose  = "close"  // stop pane ID's program and drop the pane
 	OpSelect = "select" // show session ID: passed on to every attached dashboard
+	// OpHistory asks for pane ID's screen as it was Rows lines further up, out of its scrollback; the
+	// server answers with a history message holding that Screen.
+	OpHistory = "history"
 	// OpShutdown asks the server to exit, so a newer one can take its place. It refuses, with an error,
 	// while a pane's program is running.
 	OpShutdown = "shutdown"
@@ -63,6 +66,10 @@ type Screen struct {
 	CY      int      `json:"cy"`
 	Cursor  bool     `json:"cursor"` // the program wants the cursor visible
 	AltMode bool     `json:"alt,omitempty"`
+	// In a history reply: how many lines above the live screen the first row is, clamped to what the
+	// scrollback holds, and how many lines it holds.
+	Back    int `json:"back,omitempty"`
+	MaxBack int `json:"maxBack,omitempty"`
 }
 
 // Msg is every frame on the wire, in both directions. Op says which fields are set.

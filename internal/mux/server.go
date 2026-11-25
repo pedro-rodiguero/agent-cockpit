@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -174,6 +175,10 @@ func (s *Server) handle(conn net.Conn) {
 			}
 		case OpClose:
 			s.close(m.ID)
+		case OpHistory:
+			if p := s.get(m.ID); p != nil {
+				c.send(Msg{Op: OpHistory, Screen: p.history(m.Rows)})
+			}
 		case OpShutdown:
 			if s.running() > 0 {
 				c.send(Msg{Op: OpError, Err: "not shutting down: panes are running"})
@@ -399,6 +404,24 @@ func (p *pane) screen() *Screen {
 		ID: id, Lines: renderLines(p.emu, cols, rows),
 		CX: pos.X, CY: pos.Y, Cursor: !p.emu.CursorHidden(), AltMode: p.emu.IsAltScreen(),
 	}
+}
+
+// history is the pane's screen as it was back lines further up: the scrollback above the live screen,
+// then the screen itself. back is clamped to the scrollback's length.
+func (p *pane) history(back int) *Screen {
+	p.mu.Lock()
+	id, cols, rows := p.info.ID, p.info.Cols, p.info.Rows
+	p.mu.Unlock()
+	n := p.emu.ScrollbackLen()
+	back = max(0, min(back, n))
+	top := n - back
+	cell := func(x, y int) *uv.Cell {
+		if y += top; y < n {
+			return p.emu.ScrollbackCellAt(x, y)
+		}
+		return p.emu.CellAt(x, y-n)
+	}
+	return &Screen{ID: id, Lines: renderCells(cell, cols, rows), Back: back, MaxBack: n}
 }
 
 // close removes a pane and stops its program: SIGHUP first, as closing a terminal would, then

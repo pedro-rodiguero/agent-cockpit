@@ -538,3 +538,70 @@ func TestCtrlZZoomsWhileTyping(t *testing.T) {
 		t.Fatalf("ctrl-z again: zoom %v mode %v input %+v", a.zoom, a.mode, fs.ops(mux.OpInput))
 	}
 }
+
+func TestPathCompletesAsTyped(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"alpha", "alps", "beta", "beta/inner", ".dot"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(root, "beta"), filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := appWithPane()
+	a.w = 400
+	a.launchers = []launcher{{label: "claude", agent: "claude"}}
+	a.openPrompt(&prompt{kind: promptNew, text: []rune(root)})
+	pr := a.prompt
+	names := func() (s []string) {
+		for _, m := range pr.matches {
+			s = append(s, matchName(m))
+		}
+		return s
+	}
+
+	press(a, "/")
+	if got := strings.Join(names(), " "); got != "alpha/ alps/ beta/ link/" {
+		t.Fatalf("matches after /: %q", got)
+	}
+	press(a, "a")
+	if pr.ghost() != "lp" {
+		t.Fatalf("ghost after a: %q", pr.ghost())
+	}
+	foot := ansi.Strip(lastLine(a))
+	if !strings.Contains(foot, "alpha/") || !strings.Contains(foot, "alps/") {
+		t.Fatalf("footer does not list the matches: %q", foot)
+	}
+
+	press(a, "\t")
+	if string(pr.text) != root+"/alp" {
+		t.Fatalf("first tab: %q", string(pr.text))
+	}
+	press(a, "\t", "\t")
+	if string(pr.text) != root+"/alps/" || !pr.cycling {
+		t.Fatalf("tab should cycle to the second match: %q", string(pr.text))
+	}
+	press(a, "\x1b[Z")
+	if string(pr.text) != root+"/alpha/" {
+		t.Fatalf("shift-tab should go back: %q", string(pr.text))
+	}
+	a.onKeys([]key{{code: keyEsc}})
+	if string(pr.text) != root+"/alp" || a.prompt == nil {
+		t.Fatalf("esc while cycling should restore the typed text: %q", string(pr.text))
+	}
+
+	press(a, "\x7f", "\x7f", "\x7f", "l", "\t")
+	if string(pr.text) != root+"/link/" {
+		t.Fatalf("a symlink to a directory should complete: %q", string(pr.text))
+	}
+	press(a, "\t")
+	if string(pr.text) != root+"/link/inner/" {
+		t.Fatalf("tab after a slash: %q", string(pr.text))
+	}
+}
+
+func lastLine(a *App) string {
+	lines, _ := a.compose()
+	return lines[len(lines)-1]
+}

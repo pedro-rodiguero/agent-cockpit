@@ -471,7 +471,8 @@ func (a *App) promptNewPane() {
 			dir = t.sess.Cwd
 		}
 	}
-	a.openPrompt(&prompt{kind: promptNew, text: []rune(tilde(dir))})
+	text := tilde(dir)
+	a.openPrompt(&prompt{kind: promptNew, text: []rune(text), matches: dirMatches(text), matchedFor: text})
 }
 
 func (a *App) promptReply() {
@@ -640,6 +641,56 @@ type prompt struct {
 	onO    func() // promptConfirm: what "o" does, when the question offers an alternative
 	taskID string // promptTask: the task being edited, "" for a new one
 	group  string // promptTask: the group of a new task typed without #group
+
+	// promptNew completes the directory as it is typed, the way a shell does: matches lists the
+	// directories the text completes to, and while tab cycles through them (cycling), at is the one in
+	// the field and before is the text as it was typed.
+	matches    []string
+	matchedFor string
+	cycling    bool
+	at         int
+	before     string
+}
+
+// refreshMatches lists the directories the typed path completes to, unless that is already done.
+func (pr *prompt) refreshMatches() {
+	if t := string(pr.text); t != pr.matchedFor {
+		pr.matches, pr.matchedFor = dirMatches(t), t
+	}
+}
+
+// tab completes the path like a shell: first as far as every match agrees, then, when that adds
+// nothing, by putting each match in the field in turn (step 1 forward, -1 back).
+func (pr *prompt) tab(step int) {
+	if !pr.cycling {
+		if c := extendPath(string(pr.text), pr.matches); c != string(pr.text) {
+			pr.text = []rune(c)
+			pr.refreshMatches()
+			return
+		}
+		if len(pr.matches) < 2 {
+			return
+		}
+		pr.cycling, pr.before, pr.at = true, string(pr.text), -1
+		if step < 0 {
+			pr.at = 0
+		}
+	}
+	n := len(pr.matches)
+	pr.at = ((pr.at+step)%n + n) % n
+	pr.text = []rune(pr.matches[pr.at])
+}
+
+// ghost is the rest of the path tab would add, shown after the cursor while typing.
+func (pr *prompt) ghost() string {
+	if pr.cycling {
+		return ""
+	}
+	t := string(pr.text)
+	if c := extendPath(t, pr.matches); c != t && strings.HasPrefix(c, t) {
+		return c[len(t):]
+	}
+	return ""
 }
 
 // insert adds typed or pasted text; control characters (a pasted newline) become spaces so the prompt
@@ -673,6 +724,10 @@ func (a *App) confirm(label string, onYes func()) {
 
 func (a *App) promptKey(k key) {
 	pr := a.prompt
+	if pr.kind == promptNew {
+		a.pathKey(pr, k)
+		return
+	}
 	switch {
 	case pr.kind == promptConfirm:
 		a.answer(k)
@@ -688,15 +743,55 @@ func (a *App) promptKey(k key) {
 		pr.text = nil
 	case k.isCtrl("w"):
 		pr.deleteWord()
-	case pr.kind == promptNew && (k.code == keyUp || k.code == keyLeft || k.code == keyShiftTab):
-		pr.agent = (pr.agent + len(a.launchers) - 1) % len(a.launchers)
-	case pr.kind == promptNew && (k.code == keyDown || k.code == keyRight):
-		pr.agent = (pr.agent + 1) % len(a.launchers)
-	case pr.kind == promptNew && k.code == keyTab:
-		pr.text = []rune(completeDir(string(pr.text)))
 	case k.code == keyPaste || (k.code == keyRune && !k.alt):
 		pr.insert(k.text)
 	}
+}
+
+// pathKey handles a key in the new-pane prompt: the agent picker, and the directory, completed as typed.
+// Esc while tab cycles goes back to the text typed; any key but tab and shift-tab keeps the match in the
+// field and carries on from it.
+func (a *App) pathKey(pr *prompt, k key) {
+	if !pr.cycling {
+		pr.refreshMatches()
+	}
+	if pr.cycling && k.code != keyTab && k.code != keyShiftTab {
+		pr.cycling = false
+		if k.code == keyEsc {
+			pr.text = []rune(pr.before)
+			pr.refreshMatches()
+			return
+		}
+	}
+	switch {
+	case k.code == keyEsc || k.isCtrl("c"):
+		a.closePrompt()
+		return
+	case k.code == keyEnter:
+		a.submit()
+		return
+	case k.code == keyTab:
+		pr.tab(1)
+		return
+	case k.code == keyShiftTab && pr.cycling:
+		pr.tab(-1)
+		return
+	case k.code == keyUp || k.code == keyLeft || k.code == keyShiftTab:
+		pr.agent = (pr.agent + len(a.launchers) - 1) % len(a.launchers)
+	case k.code == keyDown || k.code == keyRight:
+		pr.agent = (pr.agent + 1) % len(a.launchers)
+	case k.code == keyBackspace:
+		if len(pr.text) > 0 {
+			pr.text = pr.text[:len(pr.text)-1]
+		}
+	case k.isCtrl("u"):
+		pr.text = nil
+	case k.isCtrl("w"):
+		pr.deleteWord()
+	case k.code == keyPaste || (k.code == keyRune && !k.alt):
+		pr.insert(k.text)
+	}
+	pr.refreshMatches()
 }
 
 // answer resolves a confirmation: "y" or Enter confirms, any other key (Esc included) declines. Pasted

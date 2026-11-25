@@ -379,6 +379,46 @@ func (a *App) footerMessage() string {
 	return strings.Join(errs, " · ")
 }
 
+// matchList shows the directories the typed path completes to in room cells, the one tab put in the
+// field highlighted and always in view.
+func matchList(pr *prompt, room int) string {
+	item := func(i int) string {
+		name := matchName(pr.matches[i])
+		if pr.cycling && i == pr.at {
+			return paintBold(cBg, cGold, " "+name+" ")
+		}
+		return paint(cSoft, cPanel, " "+name+" ")
+	}
+	n, sel := len(pr.matches), 0
+	if pr.cycling {
+		sel = pr.at
+	}
+	more := func(k int) string {
+		if k == 0 {
+			return ""
+		}
+		return paint(cFaint, cPanel, fmt.Sprintf(" +%d", k))
+	}
+	for from := 0; from <= sel; from++ {
+		out := paint(cFaint, cPanel, "  ")
+		if from > 0 {
+			out += paint(cFaint, cPanel, "‹")
+		}
+		to := from
+		for to < n {
+			next := out + item(to)
+			if width(next+more(n-to-1)) > room {
+				break
+			}
+			out, to = next, to+1
+		}
+		if to > sel || (to == from && from == sel) {
+			return out + more(n-to)
+		}
+	}
+	return ""
+}
+
 func (a *App) promptLine(w, y int) (string, cursor) {
 	pr := a.prompt
 	var line string
@@ -395,7 +435,12 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 		}
 		line += paint(cGold, cPanel, "  dir ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
-		line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
+		line += paint(cFaint, cPanel, pr.ghost())
+		if len(pr.matches) > 1 {
+			line += matchList(pr, w-width(line))
+		} else {
+			line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
+		}
 	case promptReply, promptTask:
 		line = paint(cGold, cPanel, " "+pr.label+" ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}

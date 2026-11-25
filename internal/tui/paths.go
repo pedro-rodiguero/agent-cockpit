@@ -25,43 +25,66 @@ func untilde(p string) string {
 		return home
 	}
 	if strings.HasPrefix(p, "~/") {
-		return filepath.Join(home, p[2:])
+		return home + p[1:] // not filepath.Join, which would drop a trailing "/"
 	}
 	return p
 }
 
-// completeDir extends a path to the longest common prefix of the directories it matches, adding a
-// trailing "/" when exactly one matches. Hidden directories are offered only when the typed name starts
-// with a dot.
-func completeDir(p string) string {
+// dirMatches lists the directories the last element of p completes to, as paths ending in "/", in the
+// form tilde gives. Symlinks to directories count. Hidden directories are offered only when the typed
+// name starts with a dot.
+func dirMatches(p string) []string {
 	dir, base := filepath.Split(untilde(p))
 	if dir == "" {
 		dir = "."
 	}
 	ents, err := os.ReadDir(dir)
 	if err != nil {
-		return p
+		return nil
 	}
 	var matches []string
 	for _, e := range ents {
 		name := e.Name()
-		hidden := strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")
-		if e.IsDir() && strings.HasPrefix(name, base) && !hidden {
-			matches = append(matches, name)
+		if !strings.HasPrefix(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
+			continue
+		}
+		full := filepath.Join(dir, name)
+		if e.IsDir() || (e.Type()&os.ModeSymlink != 0 && isDir(full)) {
+			matches = append(matches, tilde(full)+"/")
 		}
 	}
-	if len(matches) == 0 {
+	return matches
+}
+
+// completeDir extends a path to the longest common prefix of the directories it matches, adding a
+// trailing "/" when exactly one matches.
+func completeDir(p string) string { return extendPath(p, dirMatches(p)) }
+
+// extendPath is completeDir for the matches of p already listed.
+func extendPath(p string, matches []string) string {
+	switch len(matches) {
+	case 0:
+		return p
+	case 1:
+		return matches[0]
+	}
+	names := make([]string, len(matches))
+	for i, m := range matches {
+		names[i] = filepath.Base(m)
+	}
+	dir, base := filepath.Split(untilde(p))
+	common := commonPrefix(names)
+	if len([]rune(common)) <= len([]rune(base)) {
 		return p
 	}
-	if len(matches) == 1 {
-		return tilde(filepath.Join(dir, matches[0]) + "/")
-	}
-	common := commonPrefix(matches)
-	if common == base {
-		return p
+	if dir == "" {
+		return common
 	}
 	return tilde(filepath.Join(dir, common))
 }
+
+// matchName is the last element of a match, with its slash: what a list of matches shows.
+func matchName(m string) string { return filepath.Base(m) + "/" }
 
 // commonPrefix is the longest prefix, in whole characters, that every string in s starts with.
 func commonPrefix(s []string) string {

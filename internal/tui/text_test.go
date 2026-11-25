@@ -96,6 +96,26 @@ func TestCompleteDirMultibyte(t *testing.T) {
 	}
 }
 
+func TestCompleteDirFollowsSymlinksAndKeepsTrailingSlash(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "real", "inner"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if got := completeDir(root + "/li"); got != root+"/link/" {
+		t.Errorf("a symlink to a directory should complete: %q", got)
+	}
+	if got := completeDir(root + "/link/"); got != root+"/link/inner/" {
+		t.Errorf("tab after a slash: %q", got)
+	}
+	home, _ := os.UserHomeDir()
+	if got := untilde("~/x/"); got != home+"/x/" {
+		t.Errorf("untilde dropped the trailing slash: %q", got)
+	}
+}
+
 func isValidUTF8(s string) bool { return strings.ToValidUTF8(s, "�") == s }
 
 func TestAgo(t *testing.T) {

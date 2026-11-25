@@ -37,6 +37,9 @@ Decided on 2026-11-24 for a server with one user:
   been live for a while.
 - **No manual pentest**: nobody but its owner uses the app.
 
+The ZAP baseline scan in `.github/workflows/security.yml` reads `.zap/rules.tsv`, which says which of its
+rules fail the build, which only warn (each with its reason) and which are ignored.
+
 ## Reporting a vulnerability
 
 Open a private security advisory on the repository (Security › Report a vulnerability) rather than an

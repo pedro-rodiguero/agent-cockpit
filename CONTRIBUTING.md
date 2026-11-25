@@ -6,7 +6,7 @@ see fit) and the version of the agent involved are the most useful thing you can
 ## Development
 
 ```sh
-make build    # bin/cockpit
+make build    # bin/cockpit and bin/cockpit-todo-server
 make test     # go test -race ./...
 make lint     # gofmt, go vet, staticcheck
 make menubar  # bin/AgentCockpit

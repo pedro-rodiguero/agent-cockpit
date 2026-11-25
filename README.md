@@ -57,18 +57,19 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 ## Requirements
 
 - macOS 13 or later, or Linux
-- Go 1.26 to build; on macOS, the Xcode command line tools (Swift 6.1 or later) for the app, whose
-  terminal view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+- Go 1.26.11 or later to build; on macOS, the Xcode command line tools (Swift 6.1 or later) for the
+  app, whose terminal view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+- Any of: [Claude Code](https://docs.claude.com/en/docs/claude-code), Codex CLI, Antigravity CLI
 
 On Linux everything runs in any terminal except what needs macOS: going to a session's terminal tab
 (`o`), tab titles, and the app. Those use AppleScript and AppKit.
-- Any of: [Claude Code](https://docs.claude.com/en/docs/claude-code), Codex CLI, Antigravity CLI
 
 ## Install
 
-**Download:** each [release](https://github.com/pedro-rodiguero/agent-cockpit/releases) has
+**Download:** no release is published yet; build from source below. Each
+[release](https://github.com/pedro-rodiguero/agent-cockpit/releases) will have
 `Agent-Cockpit-<version>-macos.zip` (the app, with `cockpit` inside, for Apple silicon and Intel) and
-`cockpit` for macOS and Linux. The app is not notarized yet: the first time, open it with right click ›
+`cockpit-<version>-<os>-<arch>.tar.gz` (`cockpit` and `cockpit-todo-server`) for macOS and Linux. The app is not notarized yet: the first time, open it with right click ›
 Open. For `cockpit` in the terminal, link the one inside the app:
 `ln -s "/Applications/Agent Cockpit.app/Contents/MacOS/cockpit" /usr/local/bin/cockpit`.
 
@@ -81,8 +82,11 @@ cd agent-cockpit
 NO_MENUBAR=1 ./scripts/install.sh   # only the cockpit binary
 ```
 
-`PREFIX` and `APP_DIR` change the install locations. The first time cockpit focuses a tab, macOS asks
-whether your terminal may control Terminal.app or iTerm2.
+`PREFIX` and `APP_DIR` change the install locations. The script also registers the app to open at login
+(a LaunchAgent, `~/Library/LaunchAgents/io.github.pedro-rodiguero.agent-cockpit.plist`) and, when
+reinstalling, quits the running app first; your panes keep running. `./scripts/uninstall.sh` removes
+what it installed. The first time cockpit focuses a tab, macOS asks whether your terminal may control
+Terminal.app or iTerm2.
 
 ## Use
 
@@ -98,9 +102,9 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 
 | key | action |
 |-----|--------|
-| `←↑↓→` `hjkl` | move; right from the last column enters the rail · `tab` next · `1`–`9` card on this page · `[` `]` page |
-| `⏎` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
-| `o` | go to the session's terminal tab |
+| `←↑↓→` `hjkl` | move; right from the last column enters the rail · `tab` next · `1`–`9` card on this page · `[` `]` page · `g` `G` first and last |
+| `⏎` `i` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
+| `o` | go to the session's terminal tab · `p` moves a Claude Code or Codex session from its tab into a pane (asks first) |
 | `ctrl-q` | leave a pane (every other key goes to the agent) · `ctrl-z` zooms in or out of it |
 | `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts at `~/Desktop/` and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
 | `r` | send a message to a Claude Code session |
@@ -111,7 +115,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |
 | `+` | new task: `#group` and `@date` (`today`, `tomorrow`, `25/12`, `2027-01-31`) are optional |
-| `space` | complete the selected task · `u` reopens it · `⏎` edits it · `x` deletes it |
+| `space` | complete the selected task · `u` reopens it · `⏎` or `e` edits it · `x` deletes it |
 | `?` | every key; the footer always shows the ones for the selected card |
 
 ## Configuration
@@ -156,7 +160,10 @@ run `cockpit todo connect https://todo.example.com`. When a sync fails the dashb
 [docs/todo-server.md](docs/todo-server.md) for running it and [docs/security.md](docs/security.md) for
 the security routine.
 
-A Claude profile other than the default one can keep a long-lived OAuth token (from
+Claude Code itself has one config dir, `~/.claude`, or the one `CLAUDE_CONFIG_DIR` names. Using several
+accounts side by side, each with its own dir, is a cockpit convention: any `~/.claude-<name>` dir with a
+`sessions/` folder is read as profile `<name>` (or list the dirs in `COCKPIT_CLAUDE_DIRS`), and panes for
+it start with `CLAUDE_CONFIG_DIR` set to that dir. A profile other than the default one can keep a long-lived OAuth token (from
 `claude setup-token`) in `<profile dir>/token`; panes started for that profile use it.
 
 ## Sources

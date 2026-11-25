@@ -52,10 +52,11 @@ type pane struct {
 	emu *vt.SafeEmulator
 	osc oscFilter // used by pump only
 
-	mu    sync.Mutex // guards info, dirty and paste
+	mu    sync.Mutex // guards info, dirty, paste and mouse
 	info  PaneInfo
 	dirty bool // the screen changed since the last broadcast
 	paste pasteMode
+	mouse mouseMode
 }
 
 type client struct {
@@ -167,6 +168,16 @@ func (s *Server) handle(conn net.Conn) {
 				data := p.paste.wrap(m.Data)
 				p.mu.Unlock()
 				_, _ = p.pty.Write(data)
+			}
+		case OpWheel:
+			if p := s.get(m.ID); p != nil && !p.exited() {
+				alt := p.emu.IsAltScreen()
+				p.mu.Lock()
+				data := p.mouse.wheel(m.Up, m.X, m.Y, alt)
+				p.mu.Unlock()
+				if data != nil {
+					_, _ = p.pty.Write(data)
+				}
 			}
 		case OpResize:
 			if p := s.get(m.ID); p != nil {
@@ -348,6 +359,7 @@ func (s *Server) pump(p *pane) {
 			p.mu.Lock()
 			p.dirty = true
 			p.paste.observe(buf[:n])
+			p.mouse.observe(buf[:n])
 			p.mu.Unlock()
 		}
 		if err != nil {

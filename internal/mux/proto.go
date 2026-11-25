@@ -13,8 +13,8 @@ import (
 // ProtocolVersion is the version of the messages below, raised too when the server changes in a way a
 // running one should be replaced for. The server announces it on attach, so a dashboard can tell a
 // server older than itself, which ignores requests it does not know. Servers from before version 1
-// announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter). Version 3: history.
-const ProtocolVersion = 3
+// announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter). Version 3: history. Version 4: wheel.
+const ProtocolVersion = 4
 
 // Operations. Dashboards send attach, spawn, input, paste, resize, close and shutdown; the server sends
 // hello, panes, screen, spawned and error. Anyone may send select, which the server passes on to every
@@ -30,6 +30,9 @@ const (
 	// OpHistory asks for pane ID's screen as it was Rows lines further up, out of its scrollback; the
 	// server answers with a history message holding that Screen.
 	OpHistory = "history"
+	// OpWheel turns the wheel one notch (Up or down) at X, Y of pane ID's screen, counted from 0. The
+	// program gets a mouse report if it asked for them, else cursor keys if it is full-screen.
+	OpWheel = "wheel"
 	// OpShutdown asks the server to exit, so a newer one can take its place. It refuses, with an error,
 	// while a pane's program is running.
 	OpShutdown = "shutdown"
@@ -87,6 +90,9 @@ type Msg struct {
 	Screen  *Screen    `json:"screen,omitempty"`
 	Err     string     `json:"err,omitempty"`
 	Version int        `json:"version,omitempty"`
+	X       int        `json:"x,omitempty"`
+	Y       int        `json:"y,omitempty"`
+	Up      bool       `json:"up,omitempty"`
 }
 
 // Dir is where the server keeps its socket and log.

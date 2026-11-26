@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
@@ -115,6 +116,37 @@ func TestDragACardByItsTitle(t *testing.T) {
 	press(a, mouse(mouseLeft, c.x+5, c.y, false), mouse(mouseLeft, c.x+5, c.y, true))
 	if a.sel != paneKey("p2") {
 		t.Fatalf("selected %s", a.sel)
+	}
+}
+
+// While a card is dragged by its title the grid says which card is held and where it would land.
+func TestDraggingACardShowsWhereItLands(t *testing.T) {
+	a, _ := paneGrid(t, 3)
+	from, to := a.lay.cell(0), a.lay.cell(2)
+	press(a, mouse(mouseLeft, from.x+5, from.y, false))
+	if s := screenText(a); strings.Contains(s, "moving") {
+		t.Fatalf("a press alone shows a move:\n%s", s)
+	}
+	press(a, mouse(mouseLeft+mouseMotion, from.x+8, from.y+2, false))
+	if s := screenText(a); !strings.Contains(s, "moving") || !strings.Contains(s, "╌") || strings.Contains(s, "drop here") {
+		t.Fatalf("held over its own place:\n%s", s)
+	}
+	press(a, mouse(mouseLeft+mouseMotion, to.x+5, to.y+3, false))
+	s := screenText(a)
+	if !strings.Contains(s, "drop here to swap places") || !strings.Contains(s, "release to swap") || !strings.Contains(s, "┏") || !strings.Contains(s, "⇄ swap with tmp") {
+		t.Fatalf("held over another card:\n%s", s)
+	}
+	if got := gridKeys(a); !equal(got, []string{"pane:p1", "pane:p2", "pane:p3"}) {
+		t.Fatalf("moved before the drop: %v", got)
+	}
+	lines, _ := a.compose()
+	a.dragGhost(lines)
+	if row := mdPlain(lines)[to.y+3]; !strings.Contains(row, "✥ tmp") || width(lines[to.y+3]) != a.w {
+		t.Fatalf("no tag by the pointer, or a row of another width: %q", row)
+	}
+	press(a, mouse(mouseLeft, to.x+5, to.y+3, true))
+	if s := screenText(a); strings.Contains(s, "moving") || strings.Contains(s, "drop here") || strings.Contains(s, "╌") || strings.Contains(s, "✥") {
+		t.Fatalf("after the drop:\n%s", s)
 	}
 }
 

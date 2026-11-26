@@ -42,10 +42,19 @@ const (
 	contextWarnPercent = 80
 )
 
-func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, cursor) {
+func (a *App) renderTile(t tile, cw, ch int, selected bool, num int, drop dropRole) ([]string, cursor) {
 	iw, ih := cw-cardBorderCols, ch-cardBorderCols
 	insert := selected && a.mode == insertMode
 	border := cardBorder(t, selected, insert)
+	// A card held by the mouse is drawn with a faint dashed border, as if lifted off the grid, and the
+	// card it would land on with a bright one that says so.
+	frame := cardFrame{border: border, rule: "─", side: "│", note: insertNote(insert, a.zoom)}
+	switch drop {
+	case dropHeld:
+		frame = cardFrame{border: cFaint, rule: "╌", side: "┆", note: " moving · drop it on another card "}
+	case dropTarget:
+		frame = cardFrame{border: cGoldHi, rule: "━", side: "┃", note: " drop here to swap places "}
+	}
 
 	var body []string
 	var cur cursor
@@ -55,8 +64,11 @@ func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, 
 		body = a.sessionContent(t, iw, ih)
 	}
 	lines := make([]string, 0, ch)
-	lines = append(lines, a.cardTop(t, cw, border, selected, num))
-	side := paint(border, cBg, "│")
+	lines = append(lines, a.cardTop(t, cw, frame, selected, num))
+	side := paint(frame.border, cBg, frame.side)
+	if drop != dropNone {
+		body, cur = a.dropBody(body, iw, ih, drop), cursor{}
+	}
 	for i := 0; i < ih; i++ {
 		row := ""
 		if i < len(body) {
@@ -64,12 +76,61 @@ func (a *App) renderTile(t tile, cw, ch int, selected bool, num int) ([]string, 
 		}
 		lines = append(lines, side+pad(row, iw, cBg)+side)
 	}
-	lines = append(lines, cardBottom(cw, border, insert, a.zoom))
+	lines = append(lines, cardBottom(cw, frame))
 	if cur.show {
 		cur.x++
 		cur.y++
 	}
 	return lines, cur
+}
+
+// dropBody is a card's content during a move with the mouse: washed out in the card that is held, and
+// lit in the card it would land on, with a sign in the middle saying what a release does.
+func (a *App) dropBody(body []string, iw, ih int, drop dropRole) []string {
+	fg, bg, sign := cFaint, cBg, "✥ moving"
+	if drop == dropTarget {
+		fg, bg, sign = cSoft, cPanelHi, "⇄ swap places"
+		if held, _ := a.moving(); held >= 0 {
+			sign = "⇄ swap with " + a.tiles[held].name()
+		}
+	}
+	out := make([]string, ih)
+	for i := range out {
+		row := ""
+		if i < len(body) {
+			row = ansi.Strip(body[i])
+		}
+		out[i] = paint(fg, bg, row) + paint(fg, bg, strings.Repeat(" ", max(0, iw-width(row))))
+	}
+	sign = ansi.Truncate(sign, max(0, iw-4), "…")
+	if ih == 0 || width(sign) == 0 {
+		return out
+	}
+	// The sign sits on a band of its own, a blank row above and below it when the card is tall enough.
+	mid, left := ih/2, (iw-width(sign)-2)/2
+	band := func(text string) string {
+		return paintBold(cBg, cGoldHi, " "+text+strings.Repeat(" ", width(sign)-width(text))+" ")
+	}
+	for y, text := range map[int]string{mid - 1: "", mid: sign, mid + 1: ""} {
+		if y < 0 || y >= ih || (y != mid && ih < 5) {
+			continue
+		}
+		row := ""
+		if y < len(body) {
+			row = ansi.Strip(body[y])
+		}
+		row += strings.Repeat(" ", max(0, iw-width(row)))
+		out[y] = paint(fg, bg, ansi.Cut(row, 0, left)) + band(text) + paint(fg, bg, ansi.Cut(row, left+width(sign)+2, iw))
+	}
+	return out
+}
+
+// cardFrame is how a card's border is drawn: its color, the characters of its lines, and the note on its
+// bottom edge.
+type cardFrame struct {
+	border     rgb
+	rule, side string
+	note       string
 }
 
 func cardBorder(t tile, selected, insert bool) rgb {
@@ -85,7 +146,8 @@ func cardBorder(t tile, selected, insert bool) rgb {
 }
 
 // cardTop is the top border with the title: ╭ ▲ name ───── claude · s006 · 1 ╮
-func (a *App) cardTop(t tile, cw int, border rgb, selected bool, num int) string {
+func (a *App) cardTop(t tile, cw int, frame cardFrame, selected bool, num int) string {
+	border := frame.border
 	st := t.state()
 	nameFg := cSoft
 	switch {
@@ -102,7 +164,7 @@ func (a *App) cardTop(t tile, cw int, border rgb, selected bool, num int) string
 		where = append(where, fmt.Sprint(num))
 	}
 	right := paint(cMuted, cBg, " "+strings.Join(where, " · ")+" ")
-	opening := paint(border, cBg, "╭ ") + paint(look(st).color, cBg, look(st).glyph+" ")
+	opening := paint(border, cBg, frame.corners()[0]+" ") + paint(look(st).color, cBg, look(st).glyph+" ")
 	const minFill, corner = 1, 1
 	nameRoom := max(minNameWidth, cw-width(opening)-1-width(right)-minFill-corner)
 	left := opening + paintBold(nameFg, cBg, fit(t.name(), min(nameRoom, width(t.name())))) + paint(cInk, cBg, " ")
@@ -111,7 +173,7 @@ func (a *App) cardTop(t tile, cw int, border rgb, selected bool, num int) string
 		right = ""
 		fill = cw - corner - width(left)
 	}
-	return pad(left+paint(border, cBg, strings.Repeat("─", max(0, fill)))+right+paint(border, cBg, "╮"), cw, cBg)
+	return pad(left+paint(border, cBg, strings.Repeat(frame.rule, max(0, fill)))+right+paint(border, cBg, frame.corners()[1]), cw, cBg)
 }
 
 // isMovePending reports whether the tile's session is scheduled to move into a pane.
@@ -135,20 +197,35 @@ func agentLabel(t tile) string {
 	return label
 }
 
-// cardBottom closes the card. While the person types into the card's pane it says how to leave; the
-// keys for a selected card are in the footer.
-func cardBottom(cw int, border rgb, insert, zoom bool) string {
-	hint := ""
+// corners are the frame's four corners, top left, top right, bottom left, bottom right: heavy ones for
+// heavy lines.
+func (f cardFrame) corners() [4]string {
+	if f.rule == "━" {
+		return [4]string{"┏", "┓", "┗", "┛"}
+	}
+	return [4]string{"╭", "╮", "╰", "╯"}
+}
+
+// insertNote says how to leave a pane while the person types into it; the keys for a selected card are
+// in the footer.
+func insertNote(insert, zoom bool) string {
 	switch {
 	case insert && zoom:
-		hint = " typing into the agent · esc all panes · ctrl-q leaves "
+		return " typing into the agent · esc all panes · ctrl-q leaves "
 	case insert:
-		hint = " typing into the agent · ctrl-z zoom · ctrl-q leaves "
+		return " typing into the agent · ctrl-z zoom · ctrl-q leaves "
 	}
+	return ""
+}
+
+// cardBottom closes the card, with the frame's note when there is room for it.
+func cardBottom(cw int, frame cardFrame) string {
+	hint := frame.note
 	if width(hint) > cw-4 {
 		hint = ""
 	}
-	bot := paint(border, cBg, "╰") + paint(cGoldHi, cBg, hint) + paint(border, cBg, strings.Repeat("─", max(0, cw-cardBorderCols-width(hint)))+"╯")
+	c := frame.corners()
+	bot := paint(frame.border, cBg, c[2]) + paint(cGoldHi, cBg, hint) + paint(frame.border, cBg, strings.Repeat(frame.rule, max(0, cw-cardBorderCols-width(hint)))+c[3])
 	return pad(bot, cw, cBg)
 }
 

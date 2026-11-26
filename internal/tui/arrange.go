@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The person arranges the grid: H J K L (or shift and an arrow) move the selected card, > and < make it
@@ -188,6 +190,9 @@ func (a *App) resetSizes() {
 type cardDrag struct {
 	kind dragKind
 	k    int // the card on the page: the one moved, or the one left of or above the border
+	// Where the pointer is while a card is moved, and whether it has left the spot it was pressed on.
+	x, y  int
+	moved bool
 }
 
 type dragKind int
@@ -242,7 +247,8 @@ func (a *App) dragTo(x, y int) {
 	d, l := a.drag, a.lay
 	switch d.kind {
 	case dragMove:
-		// Nothing moves until the card is dropped.
+		// Nothing moves until the card is dropped: the grid shows which card is held and where it would land.
+		d.x, d.y, d.moved = x, y, true
 	case dragWidth:
 		left, right := l.cell(d.k), l.cell(d.k+1)
 		total := left.w + right.w
@@ -301,7 +307,7 @@ func (a *App) endDrag(x, y int) {
 		return
 	}
 	from := a.lay.first + d.k
-	if _, to := a.regionAt(x, y); to >= 0 && to != from && to < a.lay.mainN {
+	if to := a.dropTarget(from, x, y); to >= 0 {
 		a.swapCards(from, to)
 		a.sel = a.tiles[to].key
 		return
@@ -310,6 +316,55 @@ func (a *App) endDrag(x, y int) {
 		a.selectIndex(from)
 	}
 }
+
+// dropTarget is the grid card that the card at from would swap places with if dropped at (x, y), -1 when
+// a drop there changes nothing.
+func (a *App) dropTarget(from, x, y int) int {
+	if _, to := a.regionAt(x, y); to >= 0 && to != from && to < a.lay.mainN {
+		return to
+	}
+	return -1
+}
+
+// moving is the card being dragged by its title and the card it would swap with if dropped now, each -1
+// for none. Nothing is moving until the pointer leaves the title, so a click on one draws nothing.
+func (a *App) moving() (from, to int) {
+	d := a.drag
+	if d == nil || d.kind != dragMove || !d.moved || a.lay.first+d.k >= len(a.tiles) {
+		return -1, -1
+	}
+	from = a.lay.first + d.k
+	return from, a.dropTarget(from, d.x, d.y)
+}
+
+// dragGhost draws a tag with the held card's name next to the pointer, over whatever is there, so the
+// card is seen travelling across the grid.
+func (a *App) dragGhost(lines []string) {
+	held, _ := a.moving()
+	d := a.drag
+	if held < 0 || d.y < 0 || d.y >= len(lines) {
+		return
+	}
+	tag := " ✥ " + fit(a.tiles[held].name(), max(1, min(24, a.w-8))) + " "
+	x := d.x + 2
+	if x+width(tag) > a.w {
+		x = d.x - 1 - width(tag) // no room on the right of the pointer: on its left
+	}
+	if x < 0 {
+		return
+	}
+	l := lines[d.y]
+	lines[d.y] = ansi.Cut(l, 0, x) + paintBold(cBg, cGoldHi, tag) + ansi.Cut(l, x+width(tag), a.w)
+}
+
+// dropRole is a card's part in a move with the mouse.
+type dropRole int
+
+const (
+	dropNone   dropRole = iota
+	dropHeld            // the card being moved
+	dropTarget          // the card it would swap places with
+)
 
 // splitShares divides total cells among weights, giving each at least least cells when there is room.
 func splitShares(total int, weights []float64, least int) []int {

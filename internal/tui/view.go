@@ -61,6 +61,7 @@ func firstOf(v ...string) string {
 func (a *App) draw() {
 	lines, cur := a.compose()
 	a.highlight(lines)
+	a.dragGhost(lines)
 	a.scr.frame(lines, a.w, a.h, cur)
 }
 
@@ -178,6 +179,7 @@ func (a *App) gridBody() ([]string, cursor) {
 		out = append(out, pad(paint(cMuted, cBg, a.emptyMessage()), l.gridW, cBg))
 	}
 	sel := a.cur()
+	held, target := a.moving()
 	for r := 0; r < l.rows && l.count > 0; r++ {
 		var cells [][]string
 		rowH, used := l.cell(r*l.cols).h, 0
@@ -188,7 +190,14 @@ func (a *App) gridBody() ([]string, cursor) {
 			}
 			box := l.cell(k)
 			i := l.first + k
-			lines, cc := a.renderTile(a.tiles[i], box.w, box.h, i == sel, k+1)
+			drop := dropNone
+			switch i {
+			case held:
+				drop = dropHeld
+			case target:
+				drop = dropTarget
+			}
+			lines, cc := a.renderTile(a.tiles[i], box.w, box.h, i == sel, k+1, drop)
 			if cc.show {
 				cur = cursor{x: box.x + cc.x, y: box.y + cc.y, show: true}
 			}
@@ -324,7 +333,12 @@ func (a *App) footer(w, y int) (string, cursor) {
 	}
 	key := func(k, d string) string { return paint(cGold, cBg, k) + paint(cFaint, cBg, " "+d+"   ") }
 	foot := paint(cInk, cBg, " ")
+	held, target := a.moving()
 	switch {
+	case held >= 0 && target >= 0:
+		foot += paint(cGoldHi, cBg, fit("release to swap "+a.tiles[held].name()+" with "+a.tiles[target].name(), w-2))
+	case held >= 0:
+		foot += paint(cGoldHi, cBg, fit("moving "+a.tiles[held].name(), w/2)) + paint(cFaint, cBg, "   drop it on another card to swap places · release here to leave it")
 	case a.mode == insertMode:
 		foot += paint(cGoldHi, cBg, "typing into the agent   ") + key("ctrl-q", "back to cockpit")
 		if a.zoom {

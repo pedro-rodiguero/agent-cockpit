@@ -510,7 +510,9 @@ func (a *App) promptNewPane() {
 		return
 	}
 	text := newPaneDir(a.lastDirFile)
-	a.openPrompt(&prompt{kind: promptNew, text: []rune(text), matches: dirMatches(text), matchedFor: text})
+	pr := &prompt{kind: promptNew, text: []rune(text), matchedFor: "\x00"}
+	pr.refreshMatches()
+	a.openPrompt(pr)
 }
 
 // newPaneDir is where the new pane prompt starts, as a terminal would: the folder above the one the last
@@ -725,6 +727,7 @@ type prompt struct {
 	// the field and before is the text as it was typed.
 	matches    []string
 	matchedFor string
+	listErr    string // why the folder being completed cannot be read, when the system refuses it
 	cycling    bool
 	at         int
 	before     string
@@ -733,7 +736,7 @@ type prompt struct {
 // refreshMatches lists the directories the typed path completes to, unless that is already done.
 func (pr *prompt) refreshMatches() {
 	if t := string(pr.text); t != pr.matchedFor {
-		pr.matches, pr.matchedFor = dirMatches(t), t
+		pr.matches, pr.matchedFor, pr.listErr = dirMatches(t), t, listProblem(t)
 	}
 }
 

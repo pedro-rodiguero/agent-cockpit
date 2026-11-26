@@ -445,9 +445,12 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 		line += paint(cGold, cPanel, "  dir ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
 		line += paint(cFaint, cPanel, pr.ghost())
-		if len(pr.matches) > 1 {
+		switch {
+		case pr.listErr != "":
+			line += paint(cStuck, cPanel, "   "+pr.listErr)
+		case len(pr.matches) > 1:
 			line += matchList(pr, w-width(line))
-		} else {
+		default:
 			line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
 		}
 	case promptReply, promptTask, promptFeedback:

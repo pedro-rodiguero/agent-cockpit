@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // tilde shortens a path under the home directory to "~/...".
@@ -54,6 +56,20 @@ func dirMatches(p string) []string {
 		}
 	}
 	return matches
+}
+
+// listProblem says why the folder p completes in cannot be listed, when the system refuses it: macOS
+// keeps the Desktop, Documents and Downloads from an app until the person allows it, and completion
+// would otherwise just find nothing. A folder that does not exist (yet) is no problem.
+func listProblem(p string) string {
+	dir, _ := filepath.Split(untilde(p))
+	if dir == "" {
+		dir = "."
+	}
+	if _, err := os.ReadDir(dir); err != nil && (os.IsPermission(err) || errors.Is(err, syscall.EPERM)) {
+		return "cannot read " + tilde(dir) + ": allow Agent Cockpit in System Settings › Privacy & Security › Files and Folders"
+	}
+	return ""
 }
 
 // completeDir extends a path to the longest common prefix of the directories it matches, adding a

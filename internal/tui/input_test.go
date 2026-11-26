@@ -703,3 +703,30 @@ func lastLine(a *App) string {
 	lines, _ := a.compose()
 	return lines[len(lines)-1]
 }
+
+// A folder the system will not list says so in the prompt, rather than completing to nothing.
+func TestPathPromptSaysWhenAFolderCannotBeRead(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	locked := filepath.Join(home, "Desktop")
+	if err := os.MkdirAll(filepath.Join(locked, "saas"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o311); err != nil { // can enter, cannot list
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	a, _ := appWithPane()
+	a.launchers = []launcher{{label: "claude", agent: "claude"}}
+	press(a, "n")
+	if !strings.Contains(a.prompt.listErr, "cannot read ~/Desktop/") {
+		t.Fatalf("no reason given: %q (matches %v)", a.prompt.listErr, a.prompt.matches)
+	}
+	if lines, _ := a.compose(); !strings.Contains(strings.Join(mdPlain(lines), "\n"), "Privacy & Security") {
+		t.Fatal("the reason is not on screen")
+	}
+	press(a, "s", "a", "a", "s", "/")
+	if a.prompt.listErr != "" {
+		t.Fatalf("a readable folder still reports a problem: %q", a.prompt.listErr)
+	}
+}

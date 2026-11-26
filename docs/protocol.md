@@ -11,6 +11,11 @@ the person types. This file describes that connection; the Go types are in
   Linux), mode `0600`, so only the user who started the server can connect. When that path is longer
   than a Unix socket allows (103 bytes, with a long home directory), the socket goes in
   `$TMPDIR/agent-cockpit-<uid>/` instead.
+- The folder holding the socket must be a real directory owned by the user that nobody else can enter:
+  the server creates it so (and tightens its own folder's mode), and both the server and the dashboard
+  refuse one that is a link, belongs to someone else or is open to others. The server also drops any
+  connection from another user, and the dashboard checks the server's user, by the socket's peer
+  credentials.
 - Each message is one JSON object followed by a newline, in both directions.
 - The dashboard starts the server when nothing answers on the socket (`cockpit serve`, in its own
   session so it survives the terminal that started it). The server logs to `serve.log` in the cache

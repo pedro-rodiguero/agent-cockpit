@@ -34,15 +34,23 @@ func (m *pasteMode) observe(chunk []byte) {
 	m.tail = append(m.tail[:0], buf...)
 }
 
-// wrap returns text as the program should receive a paste of it. Any end marker inside the text is
-// removed so pasted content cannot terminate the paste early.
+// wrap returns text as the program should receive a paste of it. Pasted text can neither end the paste
+// early nor send keys: end markers are removed until none is left (removing one can join the bytes
+// around it into another), and then every remaining ESC, so what follows them stays text.
 func (m *pasteMode) wrap(text []byte) []byte {
+	text = sanitizePaste(text)
 	if !m.on {
 		return text
 	}
-	text = bytes.ReplaceAll(text, pasteEnd, nil)
 	out := make([]byte, 0, len(text)+len(pasteStart)+len(pasteEnd))
 	out = append(out, pasteStart...)
 	out = append(out, text...)
 	return append(out, pasteEnd...)
+}
+
+func sanitizePaste(text []byte) []byte {
+	for bytes.Contains(text, pasteEnd) {
+		text = bytes.ReplaceAll(text, pasteEnd, nil)
+	}
+	return bytes.ReplaceAll(text, []byte{escByte}, nil)
 }

@@ -32,8 +32,10 @@ type Options struct {
 }
 
 const (
-	frameInterval      = 33 * time.Millisecond // drawing happens at most this often (~30 fps)
-	clockInterval      = time.Second           // redraw at least this often, for the clock and ages
+	frameInterval      = 33 * time.Millisecond  // drawing happens at most this often (~30 fps) while the person acts
+	quietFrame         = 100 * time.Millisecond // and this often (10 fps) when only panes print
+	actingFor          = time.Second            // how long after a key or click frames stay at full rate
+	clockInterval      = time.Second            // redraw at least this often, for the clock and ages
 	collectTimeout     = 6 * time.Second
 	minCollectInterval = 250 * time.Millisecond
 	escTimeout         = 50 * time.Millisecond // a lone ESC followed by nothing for this long is the Esc key
@@ -167,6 +169,8 @@ type App struct {
 	done       chan struct{} // closed when the loop has ended
 	muxPending atomic.Bool   // an evPanes is queued; further updates need no event of their own
 	dirty      bool
+	lastDraw   time.Time // when the last frame was drawn
+	lastInput  time.Time // when the last key or click arrived
 	loading    bool
 	quit       bool
 }
@@ -277,15 +281,24 @@ func (a *App) loop() {
 		select {
 		case ev := <-a.events:
 			a.handle(ev)
-		case <-frame.C:
-			if a.dirty {
+		case now := <-frame.C:
+			if a.dirty && a.frameDue(now) {
 				a.draw()
 				a.dirty = false
+				a.lastDraw = now
 			}
 		case <-clock.C:
 			a.dirty = true
 		}
 	}
+}
+
+// frameDue reports whether a frame may be drawn at now. While the person types or clicks, at the full
+// rate, so typing feels immediate; otherwise at most every quietFrame. Agents print all the time (a
+// spinner alone does), and a terminal lays out every changed row again for each frame: drawing every
+// pane update at 30 fps kept the app showing the dashboard busy on most of a core.
+func (a *App) frameDue(now time.Time) bool {
+	return now.Sub(a.lastInput) < actingFor || now.Sub(a.lastDraw) >= quietFrame
 }
 
 // post delivers ev to the loop, or drops it once the loop has ended.
@@ -403,6 +416,7 @@ func (a *App) handle(ev event) {
 	a.dirty = true
 	switch ev.kind {
 	case evInput:
+		a.lastInput = time.Now()
 		a.inputSeq++
 		a.onKeys(a.keys.feed(ev.data))
 		a.armEscTimeout()

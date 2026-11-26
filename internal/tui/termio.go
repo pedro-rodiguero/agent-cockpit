@@ -38,6 +38,7 @@ type screen struct {
 	w         *bufio.Writer
 	prev      []string
 	pw, ph    int
+	pcur      cursor       // the cursor the previous frame left
 	down      *downsampler // set when the terminal cannot show 24-bit color
 	closeOnce sync.Once
 }
@@ -90,13 +91,17 @@ func (s *screen) repaint() {
 	}
 }
 
-// frame draws lines, rewriting only the ones that changed since the previous frame.
+// frame draws lines, rewriting only the ones that changed since the previous frame. A frame that
+// changes nothing writes nothing: the terminal would otherwise redraw for its sync and cursor sequences.
 func (s *screen) frame(lines []string, w, h int, cur cursor) {
 	if w != s.pw || h != s.ph {
 		s.prev = nil
 		s.pw, s.ph = w, h
 		s.w.WriteString("\x1b[0m\x1b[2J")
+	} else if cur == s.pcur && sameLines(s.prev, lines, h) {
+		return
 	}
+	s.pcur = cur
 	s.w.WriteString(syncBegin + "\x1b[?25l")
 	for i, l := range lines {
 		if i >= h {
@@ -117,4 +122,18 @@ func (s *screen) frame(lines []string, w, h int, cur cursor) {
 	s.w.WriteString(syncEnd)
 	s.w.Flush()
 	s.prev = append(s.prev[:0], lines...)
+}
+
+// sameLines reports whether the first h of lines are what prev already shows.
+func sameLines(prev, lines []string, h int) bool {
+	n := min(len(lines), h)
+	if len(prev) != n {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		if prev[i] != lines[i] {
+			return false
+		}
+	}
+	return true
 }

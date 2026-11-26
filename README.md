@@ -106,7 +106,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `⏎` `i` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
 | `o` | go to the session's terminal tab · `p` moves a Claude Code or Codex session from its tab into a pane (asks first) |
 | `ctrl-q` | leave a pane (every other key goes to the agent) · `ctrl-z` zooms in or out of it |
-| `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts at `~/Desktop/` and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
+| `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts one level above the last pane's folder (at `~/Desktop/` the first time) and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
 | `r` | send a message to a Claude Code session |
 | `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
 | `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |

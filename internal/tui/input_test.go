@@ -79,6 +79,7 @@ func newTestApp(view viewKind, w, h int) *App {
 		panic(err)
 	}
 	a.tasks = &todo.Store{Path: filepath.Join(dir, "todo.json")}
+	a.lastDirFile = filepath.Join(dir, "last-pane-dir")
 	return a
 }
 
@@ -205,6 +206,47 @@ func TestNewPaneStartsOnTheDesktop(t *testing.T) {
 	}
 	if len(a.prompt.matches) != 1 || a.prompt.matches[0] != "~/Desktop/proj/" {
 		t.Fatalf("matches %v", a.prompt.matches)
+	}
+}
+
+func TestNewPaneStartsAboveTheLastPaneDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tickets := filepath.Join(home, "Desktop", "saas", "tickets")
+	if err := os.MkdirAll(tickets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a, fs := appWithPane()
+	a.launchers = []launcher{{label: "claude", agent: "claude"}}
+	press(a, "n")
+	if got := string(a.prompt.text); got != "~/Desktop/" {
+		t.Fatalf("first time: %q", got)
+	}
+	a.startPane(a.launchers[0], "~/Desktop/saas/tickets/")
+	if sp := fs.ops(mux.OpSpawn); len(sp) != 1 || sp[0].Cwd != tickets {
+		t.Fatalf("spawned %+v", sp)
+	}
+
+	press(a, "n")
+	if got := string(a.prompt.text); got != "~/Desktop/saas/" {
+		t.Fatalf("after tickets: %q", got)
+	}
+	a.onKeys([]key{{code: keyEsc}})
+
+	b, _ := appWithPane() // a restart reads the same file
+	b.lastDirFile = a.lastDirFile
+	press(b, "n")
+	if got := string(b.prompt.text); got != "~/Desktop/saas/" {
+		t.Fatalf("after a restart: %q", got)
+	}
+	b.onKeys([]key{{code: keyEsc}})
+
+	if err := os.RemoveAll(filepath.Join(home, "Desktop", "saas")); err != nil {
+		t.Fatal(err)
+	}
+	press(b, "n")
+	if got := string(b.prompt.text); got != "~/Desktop/" {
+		t.Fatalf("with the folder gone: %q", got)
 	}
 }
 

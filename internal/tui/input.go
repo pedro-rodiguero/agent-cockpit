@@ -465,18 +465,38 @@ func (a *App) promptNewPane() {
 	if a.muxUnavailable() {
 		return
 	}
-	text := newPaneDir()
+	text := newPaneDir(a.lastDirFile)
 	a.openPrompt(&prompt{kind: promptNew, text: []rune(text), matches: dirMatches(text), matchedFor: text})
 }
 
-// newPaneDir is where the new pane prompt starts: the Desktop, or home when there is none. It ends in "/"
-// so the folders inside are listed right away.
-func newPaneDir() string {
+// newPaneDir is where the new pane prompt starts, as a terminal would: the folder above the one the last
+// pane started in, so it and its siblings are listed. Before any pane, or when that folder is gone, it is
+// the Desktop, or home when there is none. It ends in "/" so the folders inside are listed right away.
+func newPaneDir(lastDirFile string) string {
+	if b, err := os.ReadFile(lastDirFile); err == nil {
+		if last := strings.TrimSpace(string(b)); filepath.IsAbs(last) {
+			for dir := filepath.Dir(last); ; dir = filepath.Dir(dir) {
+				if isDir(dir) {
+					return strings.TrimSuffix(tilde(dir), "/") + "/"
+				}
+				if dir == filepath.Dir(dir) {
+					break
+				}
+			}
+		}
+	}
 	home, _ := os.UserHomeDir()
-	if fi, err := os.Stat(filepath.Join(home, "Desktop")); err == nil && fi.IsDir() {
+	if isDir(filepath.Join(home, "Desktop")) {
 		return "~/Desktop/"
 	}
 	return "~/"
+}
+
+// rememberPaneDir records dir as where the last pane started, for the next new pane prompt.
+func (a *App) rememberPaneDir(dir string) {
+	if os.MkdirAll(filepath.Dir(a.lastDirFile), 0o700) == nil {
+		_ = os.WriteFile(a.lastDirFile, []byte(dir+"\n"), 0o600)
+	}
 }
 
 func (a *App) promptReply() {
@@ -844,6 +864,7 @@ func (a *App) startPane(l launcher, typed string) {
 	a.closePrompt()
 	cols, rows := a.newPaneSize()
 	if a.send(mux.Msg{Op: mux.OpSpawn, Agent: l.agent, Env: profileEnv(l.profile), Cwd: dir, Cols: cols, Rows: rows}) {
+		a.rememberPaneDir(dir)
 		a.say("starting " + l.label + " in " + tilde(dir) + "…")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -143,6 +144,7 @@ type App struct {
 	scrollBack    map[string]int           // pane ID → lines the pane is scrolled up into its history; absent when live
 	tasks         *todo.Store              // cockpit's own to-do list
 	lastDone      string                   // the task u reopens
+	lastDirFile   string                   // holds the directory the last new pane started in
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
@@ -164,19 +166,20 @@ type App struct {
 
 func newApp(col *source.Collector, opts Options) *App {
 	a := &App{
-		opts:       opts,
-		col:        col,
-		launchers:  launchers(source.ClaudeDirs(opts.Settings.Current())),
-		focus:      term.Focus,
-		stop:       func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
-		resized:    map[string][2]int{},
-		tasks:      &todo.Store{Path: todo.DefaultPath(), Settings: func() todo.Settings { return opts.Settings.Current().Todo }},
-		collectNow: make(chan struct{}, 1),
-		events:     make(chan event, eventBuffer),
-		done:       make(chan struct{}),
-		loading:    true,
-		w:          fallbackCols,
-		h:          fallbackRows,
+		opts:        opts,
+		col:         col,
+		launchers:   launchers(source.ClaudeDirs(opts.Settings.Current())),
+		focus:       term.Focus,
+		stop:        func(s model.Session) error { return stopAgent(s, runsAgent, stopProcess) },
+		resized:     map[string][2]int{},
+		tasks:       &todo.Store{Path: todo.DefaultPath(), Settings: func() todo.Settings { return opts.Settings.Current().Todo }},
+		lastDirFile: filepath.Join(filepath.Dir(todo.DefaultPath()), "last-pane-dir"),
+		collectNow:  make(chan struct{}, 1),
+		events:      make(chan event, eventBuffer),
+		done:        make(chan struct{}),
+		loading:     true,
+		w:           fallbackCols,
+		h:           fallbackRows,
 	}
 	if opts.Grid {
 		a.view = gridView

@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/quick"
 )
 
 // CanFocus reports whether Focus can bring a terminal tab to the front on this system.
@@ -13,7 +15,7 @@ const CanFocus = true
 
 // running reports whether a process named exactly app is running, so AppleScript never launches it.
 func running(app string) bool {
-	return exec.Command("pgrep", "-xq", app).Run() == nil
+	return quick.Run("", "pgrep", "-xq", app) == nil
 }
 
 // osascript runs an AppleScript with a timeout: an app showing a modal dialog never answers.
@@ -119,4 +121,4 @@ end tell`)
 }
 
 // Open opens a URL in the default browser.
-func Open(url string) error { return exec.Command("open", url).Run() }
+func Open(url string) error { return quick.Run("", "open", url) }

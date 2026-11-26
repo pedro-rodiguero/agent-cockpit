@@ -4,13 +4,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/quick"
 )
 
 // Mouse buttons as SGR mouse reporting encodes them.
@@ -256,9 +256,7 @@ func (a *App) copySelection() {
 // copyToClipboard uses pbcopy on a Mac and otherwise asks the terminal to copy, with OSC 52.
 func copyToClipboard(text string) error {
 	if runtime.GOOS == "darwin" && os.Getenv("SSH_TTY") == "" {
-		cmd := exec.Command("pbcopy")
-		cmd.Stdin = strings.NewReader(text)
-		return cmd.Run()
+		return quick.Run(text, "pbcopy")
 	}
 	_, err := os.Stdout.WriteString("\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\a")
 	return err

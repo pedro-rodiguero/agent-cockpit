@@ -12,6 +12,7 @@ import (
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/quick"
 )
 
 // How stopProcess waits for a signalled process to exit before escalating.
@@ -100,7 +101,7 @@ type processMatcher func(pid int, agent string) (bool, error)
 
 // runsAgent is the processMatcher used outside tests: it asks ps(1) for pid's command line.
 func runsAgent(pid int, agent string) (bool, error) {
-	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "args=").Output()
+	out, err := quick.Output("", "ps", "-p", strconv.Itoa(pid), "-o", "args=")
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		return false, nil // ps exits non-zero when there is no such process

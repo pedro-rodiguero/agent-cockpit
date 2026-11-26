@@ -2,12 +2,12 @@ package tui
 
 import (
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/config"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/quick"
 )
 
 // systemLookEvery is how often the system's appearance is checked when the theme follows it.
@@ -36,7 +36,7 @@ func systemDark() bool {
 	if runtime.GOOS != "darwin" {
 		return true
 	}
-	out, err := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle").Output()
+	out, err := quick.Output("", "defaults", "read", "-g", "AppleInterfaceStyle")
 	return err == nil && strings.TrimSpace(string(out)) == "Dark"
 }
 

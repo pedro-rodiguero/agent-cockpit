@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -54,5 +57,25 @@ func TestShortDuration(t *testing.T) {
 		if got := shortDuration(d); got != want {
 			t.Errorf("shortDuration(%v) = %q, want %q", d, got, want)
 		}
+	}
+}
+
+// A helper program that never answers must not stall the dashboard: dark mode is read on the
+// collection loop, so a stuck `defaults` would stop every update.
+func TestSystemDarkGivesUpOnAStuckHelper(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("systemDark asks defaults(1) only on macOS")
+	}
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "defaults"), []byte("#!/bin/sh\nsleep 60\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	start := time.Now()
+	if systemDark() {
+		t.Fatal("a helper that never answered reported dark mode")
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("waited %v for a stuck helper", d)
 	}
 }

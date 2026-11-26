@@ -149,6 +149,8 @@ type App struct {
 	park          *parking                 // SSH panes moved to the rail, and the answers that move them
 	parkSnooze    map[string]time.Time     // paneIdentity → when to ask about parking it again
 	woke          map[string]time.Time     // pane ID → when the person last brought it back or typed into it
+	arr           *arrangement             // the order and sizes the person gave the grid's cards
+	drag          *cardDrag                // a card being moved or resized with the mouse
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
@@ -180,6 +182,7 @@ func newApp(col *source.Collector, opts Options) *App {
 		lastDirFile: filepath.Join(filepath.Dir(todo.DefaultPath()), "last-pane-dir"),
 		park:        loadParking(filepath.Join(filepath.Dir(todo.DefaultPath()), "parking.json")),
 		parkSnooze:  map[string]time.Time{},
+		arr:         loadArrangement(filepath.Join(filepath.Dir(todo.DefaultPath()), "arrangement.json")),
 		collectNow:  make(chan struct{}, 1),
 		events:      make(chan event, eventBuffer),
 		done:        make(chan struct{}),
@@ -517,6 +520,9 @@ func (a *App) placing() placing {
 	if a.park != nil {
 		pl.parked = a.park.inRail()
 	}
+	if a.arr != nil {
+		pl.order = a.arr.positions()
+	}
 	return pl
 }
 
@@ -602,6 +608,9 @@ func (a *App) hasPane(id string) bool {
 // relayout recomputes the layout for the current state and resizes visible panes to their cards.
 func (a *App) relayout() {
 	a.lay = computeLayout(a.w, a.h, len(a.tiles), a.railN, a.view, a.zoom, a.index(a.sel), a.lay.page)
+	if !a.zoom {
+		a.lay.arrange(a.sizeOf)
+	}
 	a.syncPaneSizes()
 }
 

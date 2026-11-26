@@ -55,6 +55,13 @@ const (
 	actUndo
 	actPlan
 	actAside
+	actMoveUp
+	actMoveDown
+	actMoveLeft
+	actMoveRight
+	actGrow
+	actShrink
+	actEvenSizes
 )
 
 // binding is a key as navigation mode sees it.
@@ -82,18 +89,25 @@ var navBindings = map[binding]action{
 	{keyRune, "a"}:    actToggleAttention,
 	{keyRune, "t"}:    actToggleLabels,
 	{keyEnter, ""}:    actActivate, {keyRune, "i"}: actActivate,
-	{keyRune, "o"}: actFocusTab,
-	{keyRune, "n"}: actNewPane,
-	{keyRune, "r"}: actReply,
-	{keyRune, "x"}: actClosePane,
-	{keyRune, "p"}: actAdopt,
-	{keyRune, "?"}: actHelp,
-	{keyRune, "+"}: actNewTask,
-	{keyRune, " "}: actCompleteTask,
-	{keyRune, "e"}: actEditTask,
-	{keyRune, "u"}: actUndo,
-	{keyRune, "m"}: actPlan,
-	{keyRune, "s"}: actAside,
+	{keyRune, "o"}:   actFocusTab,
+	{keyRune, "n"}:   actNewPane,
+	{keyRune, "r"}:   actReply,
+	{keyRune, "x"}:   actClosePane,
+	{keyRune, "p"}:   actAdopt,
+	{keyRune, "?"}:   actHelp,
+	{keyRune, "+"}:   actNewTask,
+	{keyRune, " "}:   actCompleteTask,
+	{keyRune, "e"}:   actEditTask,
+	{keyRune, "u"}:   actUndo,
+	{keyRune, "m"}:   actPlan,
+	{keyRune, "s"}:   actAside,
+	{keyShiftUp, ""}: actMoveUp, {keyRune, "K"}: actMoveUp,
+	{keyShiftDown, ""}: actMoveDown, {keyRune, "J"}: actMoveDown,
+	{keyShiftLeft, ""}: actMoveLeft, {keyRune, "H"}: actMoveLeft,
+	{keyShiftRight, ""}: actMoveRight, {keyRune, "L"}: actMoveRight,
+	{keyRune, ">"}: actGrow,
+	{keyRune, "<"}: actShrink,
+	{keyRune, "="}: actEvenSizes,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -118,6 +132,7 @@ func (a *App) onKeys(keys []key) {
 	for _, k := range keys {
 		if k.code == keyMouse {
 			a.onMouse(k.mouse)
+			a.relayout()
 			continue
 		}
 		a.selecting = nil
@@ -267,6 +282,20 @@ func (a *App) navKey(k key) {
 		a.openPlan()
 	case actAside:
 		a.toggleAside()
+	case actMoveUp:
+		a.moveCard(0, -1)
+	case actMoveDown:
+		a.moveCard(0, 1)
+	case actMoveLeft:
+		a.moveCard(-1, 0)
+	case actMoveRight:
+		a.moveCard(1, 0)
+	case actGrow:
+		a.growCard(growStep)
+	case actShrink:
+		a.growCard(1 / growStep)
+	case actEvenSizes:
+		a.resetSizes()
 	}
 }
 

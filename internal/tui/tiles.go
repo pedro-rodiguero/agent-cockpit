@@ -19,6 +19,15 @@ type tile struct {
 	rested time.Time // for a pane: since when nobody typed into it and it printed nothing
 }
 
+// identity names a tile across cockpit restarts, for what the person decided about it: where it goes in
+// the grid, how big it is, whether it is set aside.
+func (t tile) identity() string {
+	if t.pane != nil {
+		return paneIdentity(*t.pane)
+	}
+	return t.key
+}
+
 // needsYou reports whether the tile wants the person: such a tile is never kept in the rail by a
 // pane's quiet or by being set aside, so a question is never missed.
 func (t tile) needsYou() bool { return t.state().NeedsAttention() }
@@ -138,6 +147,7 @@ func restingSince(t tile) time.Time {
 type placing struct {
 	parked map[string]bool      // paneIdentity → in the rail: set aside by hand, or a quiet SSH connection
 	woke   map[string]time.Time // pane ID → when the person last brought the pane back or typed into it
+	order  map[string]int       // identity → the position the person gave the card in the grid
 }
 
 // buildTiles merges collected sessions with the server's panes. A pane whose process is a session's
@@ -146,6 +156,7 @@ type placing struct {
 // The list keeps the collector's order, most urgent first. The grid view orders tiles by place: cards
 // first (panes, then sessions by start time, so cards keep their places), then the rail's sections,
 // each of whose quiet sessions comes most recently active first.
+// Cards the person arranged come first in the order they gave them; the others follow.
 func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time, pl placing) []tile {
 	byPID := map[int]int{}
 	for i, s := range sessions {
@@ -184,6 +195,10 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, n
 				return pi < pj
 			case pi == inQuiet:
 				return restingSince(tiles[i]).After(restingSince(tiles[j]))
+			case pi == inGrid:
+				oi, iok := pl.order[tiles[i].identity()]
+				oj, jok := pl.order[tiles[j].identity()]
+				return iok && (!jok || oi < oj)
 			}
 			return false
 		})

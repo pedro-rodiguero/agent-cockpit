@@ -36,7 +36,10 @@ own, shows each one as a card with its live conversation, and keeps what needs y
   (`y` moves it, `n` keeps it in the grid, `a` always moves tunnels, or sessions to that host, without
   asking). `⏎` on a parked pane brings it back; it also comes back when the connection ends. The answers
   live in `parking.json` next to the to-do list; delete it to be asked again. The grid picks its columns
-  and rows from the window size and pages when the cards don't fit. `v` switches to a list with a reading pane for the selected session.
+  and rows from the window size and pages when the cards don't fit; within it, the cards are yours to
+  arrange: `H J K L` (or shift and an arrow) move the selected card, `>` and `<` make it bigger or
+  smaller, `=` evens them out again, and the mouse drags a card by its title onto another or drags the
+  border between two cards. The order and sizes are kept in `arrangement.json`. `v` switches to a list with a reading pane for the selected session.
 - **Runs agents in panes.** `n` starts Claude Code, Codex, agy or a shell inside a card: a real
   interactive terminal. The panes belong to a small background server (`cockpit serve`), so they keep
   running after you close the dashboard and come back when you reopen it. `⏎` on a pane whose program
@@ -115,10 +118,11 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts one level above the last pane's folder (at `~/Desktop/` the first time) and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
 | `r` | send a message to a Claude Code session; `alt-⏎`, or `\` then `⏎`, starts a new line, and pasted text keeps its lines |
 | `m` | read the selected Claude Code session's plan (`<config>/plans/<slug>.md`), rendered and updated live as the agent rewrites it: `j k` scroll, `space b` page, `[ ]` previous/next section, `g G` top/end, `r` sends feedback on the plan to the session, `esc` closes |
+| `H` `J` `K` `L` | move the selected card in the grid (also shift and an arrow) · `>` `<` bigger or smaller · `=` every card the same size · the mouse drags a card by its title, or the border between two cards |
 | `s` | set the selected pane aside in the rail, or bring it back from there |
 | `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
 | `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |
-| drag | select text inside one pane, copied when you let go · click selects a card |
+| drag | select text inside one pane, copied when you let go · click selects a card · a card's title or the border between two cards arranges them |
 | wheel | scroll a pane back through its history (5000 lines); scrolling to the bottom or typing returns to the live screen. A full-screen program such as Claude Code scrolls itself: it gets the wheel when it asks for the mouse, arrow keys otherwise |
 | `!` | next card that needs you · `a` show only those |
 | `v` | grid or list · `t` tab titles on/off · `q` quit (panes keep running) |

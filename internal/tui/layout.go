@@ -58,6 +58,7 @@ type layout struct {
 	count       int  // tiles on the current page
 	perPage     int  // tiles on a full page: the paging step
 	page, pages int
+	cells       []rect // the cards of the page when the person sized them (arrange); nil for an even grid
 }
 
 // computeLayout lays out n tiles, the last railN of which belong in the rail, with tile sel selected.
@@ -127,6 +128,9 @@ func bestGrid(n, W, H, capC, capR int) (cols, rows int) {
 // cell is the screen region of the k-th card on the page, borders included. A last row with fewer
 // cards than columns spreads them over the whole width rather than leaving a hole.
 func (l layout) cell(k int) rect {
+	if k < len(l.cells) {
+		return l.cells[k]
+	}
 	r, c := k/l.cols, k%l.cols
 	cols := l.cols
 	if r == l.rows-1 {

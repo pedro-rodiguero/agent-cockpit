@@ -108,6 +108,11 @@ func (a *App) onMouse(m mouseEvent) {
 		a.wheel(m)
 	case a.doc != nil:
 		// The viewer covers the cards: a click must not select one the person cannot see.
+	case m.btn == mouseLeft && !m.release && a.startDrag(m.x, m.y):
+	case m.btn == mouseLeft+mouseMotion && a.drag != nil:
+		a.dragTo(m.x, m.y)
+	case m.btn == mouseLeft && m.release && a.drag != nil:
+		a.endDrag(m.x, m.y)
 	case m.btn == mouseLeft && !m.release:
 		region, _ := a.regionAt(m.x, m.y)
 		a.selecting = &selection{region: region, ax: m.x, ay: m.y, bx: m.x, by: m.y, dragging: true}

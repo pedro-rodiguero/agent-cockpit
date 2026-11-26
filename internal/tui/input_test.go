@@ -81,6 +81,7 @@ func newTestApp(view viewKind, w, h int) *App {
 	a.tasks = &todo.Store{Path: filepath.Join(dir, "todo.json")}
 	a.lastDirFile = filepath.Join(dir, "last-pane-dir")
 	a.park = loadParking(filepath.Join(dir, "parking.json"))
+	a.arr = loadArrangement(filepath.Join(dir, "arrangement.json"))
 	return a
 }
 

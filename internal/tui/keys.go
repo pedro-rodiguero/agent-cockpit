@@ -30,6 +30,10 @@ const (
 	keyEnd
 	keyPgUp
 	keyPgDown
+	keyShiftUp
+	keyShiftDown
+	keyShiftLeft
+	keyShiftRight
 	keyMouse // a mouse report; key.mouse holds it
 )
 
@@ -57,6 +61,7 @@ var csiKeys = map[string]keyCode{
 	"A": keyUp, "B": keyDown, "C": keyRight, "D": keyLeft,
 	"H": keyHome, "1~": keyHome, "F": keyEnd, "4~": keyEnd,
 	"5~": keyPgUp, "6~": keyPgDown, "3~": keyDelete, "Z": keyShiftTab,
+	"1;2A": keyShiftUp, "1;2B": keyShiftDown, "1;2C": keyShiftRight, "1;2D": keyShiftLeft,
 }
 
 // keyDecoder turns terminal input into keys. Reads can end in the middle of an escape sequence, a UTF-8

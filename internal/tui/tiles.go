@@ -15,8 +15,13 @@ type tile struct {
 	key    string // stable identity across rebuilds: the session ID, or paneKey(pane ID)
 	sess   *model.Session
 	pane   *mux.PaneInfo
-	parked bool // a pane moved to the rail (see park.go)
+	parked bool      // a pane moved to the rail, by hand or as a quiet SSH connection (see park.go)
+	rested time.Time // for a pane: since when nobody typed into it and it printed nothing
 }
+
+// needsYou reports whether the tile wants the person: such a tile is never kept in the rail by a
+// pane's quiet or by being set aside, so a question is never missed.
+func (t tile) needsYou() bool { return t.state().NeedsAttention() }
 
 func paneKey(id string) string { return "pane:" + id }
 
@@ -82,7 +87,8 @@ func (t tile) agent() string {
 	return ""
 }
 
-// quietAfter is how long a session may sit idle before it gives its card up for a row in the rail.
+// quietAfter is how long a session, or a pane nobody typed into and that printed nothing, may sit idle
+// before it gives its card up for a row in the rail.
 // The settings change it; only the event loop touches it.
 var quietAfter = defaultQuietAfter
 
@@ -110,12 +116,28 @@ func (t tile) place(now time.Time) place {
 		return inInbox
 	case t.pane != nil && t.pane.Exited:
 		return inEnded
-	case t.parked:
+	case t.parked && !t.needsYou():
 		return inParked
 	case t.pane == nil && t.state() == model.Idle && now.Sub(since(t)) > quietAfter:
 		return inQuiet
+	case t.pane != nil && !t.rested.IsZero() && !t.needsYou() && t.state() != model.Busy && now.Sub(t.rested) > quietAfter:
+		return inQuiet
 	}
 	return inGrid
+}
+
+// restingSince is when a tile in the rail's idle section went quiet.
+func restingSince(t tile) time.Time {
+	if t.pane != nil {
+		return t.rested
+	}
+	return since(t)
+}
+
+// placing is what the person decided about where tiles go, beyond their own state.
+type placing struct {
+	parked map[string]bool      // paneIdentity → in the rail: set aside by hand, or a quiet SSH connection
+	woke   map[string]time.Time // pane ID → when the person last brought the pane back or typed into it
 }
 
 // buildTiles merges collected sessions with the server's panes. A pane whose process is a session's
@@ -124,8 +146,7 @@ func (t tile) place(now time.Time) place {
 // The list keeps the collector's order, most urgent first. The grid view orders tiles by place: cards
 // first (panes, then sessions by start time, so cards keep their places), then the rail's sections,
 // each of whose quiet sessions comes most recently active first.
-// parked holds the paneIdentity of the panes moved to the rail.
-func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time, parked map[string]bool) []tile {
+func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time, pl placing) []tile {
 	byPID := map[int]int{}
 	for i, s := range sessions {
 		if s.PID != 0 {
@@ -135,7 +156,10 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, n
 	merged := map[int]bool{}
 	tiles := make([]tile, 0, len(sessions)+len(panes))
 	for i := range panes {
-		t := tile{key: paneKey(panes[i].ID), pane: &panes[i], parked: parked[paneIdentity(panes[i])]}
+		t := tile{key: paneKey(panes[i].ID), pane: &panes[i], parked: pl.parked[paneIdentity(panes[i])], rested: quietSince(panes[i])}
+		if w := pl.woke[panes[i].ID]; w.After(t.rested) {
+			t.rested = w
+		}
 		if j, ok := byPID[panes[i].PID]; ok {
 			t.sess = &sessions[j]
 			merged[j] = true
@@ -155,10 +179,13 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, n
 	if view == gridView {
 		sort.SliceStable(tiles, func(i, j int) bool {
 			pi, pj := tiles[i].place(now), tiles[j].place(now)
-			if pi != pj || pi != inQuiet {
+			switch {
+			case pi != pj:
 				return pi < pj
+			case pi == inQuiet:
+				return restingSince(tiles[i]).After(restingSince(tiles[j]))
 			}
-			return since(tiles[i]).After(since(tiles[j]))
+			return false
 		})
 	}
 	return tiles

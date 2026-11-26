@@ -148,6 +148,7 @@ type App struct {
 	lastDirFile   string                   // holds the directory the last new pane started in
 	park          *parking                 // SSH panes moved to the rail, and the answers that move them
 	parkSnooze    map[string]time.Time     // paneIdentity → when to ask about parking it again
+	woke          map[string]time.Time     // pane ID → when the person last brought it back or typed into it
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
@@ -510,11 +511,13 @@ func (a *App) send(m mux.Msg) bool {
 	return true
 }
 
-func (a *App) parkedSet() map[string]bool {
-	if a.park == nil {
-		return nil
+// placing is what the person decided about where tiles go.
+func (a *App) placing() placing {
+	pl := placing{woke: a.woke}
+	if a.park != nil {
+		pl.parked = a.park.inRail()
 	}
-	return a.park.Parked
+	return pl
 }
 
 // rebuild merges the latest sessions and panes into tiles and keeps the selection and mode valid.
@@ -523,7 +526,10 @@ func (a *App) rebuild() {
 		a.panes = a.mc.Panes()
 	}
 	now := time.Now()
-	tiles := buildTiles(a.snap.Sessions, a.panes, a.view, now, a.parkedSet())
+	if t, ok := a.selected(); ok && a.mode == insertMode && t.pane != nil {
+		a.wake(t.pane.ID) // the pane being typed into stays in the grid however long it is quiet
+	}
+	tiles := buildTiles(a.snap.Sessions, a.panes, a.view, now, a.placing())
 	if a.onlyAttn {
 		keep := ""
 		if a.mode == insertMode {
@@ -561,6 +567,11 @@ func (a *App) forgetClosedPanes() {
 	for id := range a.paneSessions {
 		if !a.hasPane(id) {
 			delete(a.paneSessions, id)
+		}
+	}
+	for id := range a.woke {
+		if !a.hasPane(id) {
+			delete(a.woke, id)
 		}
 	}
 }
@@ -624,7 +635,7 @@ func (a *App) updateLabels() {
 		return
 	}
 	// Every session counts, not just the ones the attention filter shows.
-	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view, time.Now(), a.parkedSet())))
+	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view, time.Now(), a.placing())))
 	a.shownLabels = next
 	a.labels.set(changes)
 }

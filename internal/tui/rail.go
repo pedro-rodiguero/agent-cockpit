@@ -108,9 +108,11 @@ func railEntry(t tile, w int, selected bool, now time.Time) []string {
 		glyph, glyphFg = "◧", cFaint
 		age = fmt.Sprintf("code %d", t.pane.ExitCode)
 		detail = t.pane.Agent + " · " + tilde(t.pane.Cwd)
-	case t.parked:
-		glyph, glyphFg = "⇄", cIdle
-		age = ago(quietSince(*t.pane), now)
+	case t.pane != nil:
+		if _, ssh := parseSSH(t.pane.Foreground); ssh {
+			glyph, glyphFg = "⇄", cIdle
+		}
+		age = ago(t.rested, now)
 		detail = firstOf(t.pane.Foreground, t.pane.Agent+" · "+tilde(t.pane.Cwd))
 	case t.isTask():
 		var dueFg rgb

@@ -79,8 +79,24 @@ type parking struct {
 
 	AlwaysTunnels bool            `json:"alwaysTunnels,omitempty"` // park every quiet tunnel without asking
 	AlwaysHosts   map[string]bool `json:"alwaysHosts,omitempty"`   // park quiet SSH sessions to these hosts without asking
-	Parked        map[string]bool `json:"parked,omitempty"`        // panes in the rail, by paneIdentity
+	Parked        map[string]bool `json:"parked,omitempty"`        // SSH panes in the rail, by paneIdentity
 	Declined      map[string]bool `json:"declined,omitempty"`      // panes the person keeps in the grid
+	Aside         map[string]bool `json:"aside,omitempty"`         // any pane the person set aside with s
+}
+
+// inRail is every pane parking keeps in the rail, by paneIdentity.
+func (p *parking) inRail() map[string]bool {
+	if len(p.Aside) == 0 {
+		return p.Parked
+	}
+	all := make(map[string]bool, len(p.Parked)+len(p.Aside))
+	for k := range p.Parked {
+		all[k] = true
+	}
+	for k := range p.Aside {
+		all[k] = true
+	}
+	return all
 }
 
 func loadParking(path string) *parking {
@@ -97,6 +113,9 @@ func loadParking(path string) *parking {
 	if p.Declined == nil {
 		p.Declined = map[string]bool{}
 	}
+	if p.Aside == nil {
+		p.Aside = map[string]bool{}
+	}
 	return p
 }
 
@@ -111,9 +130,11 @@ func (p *parking) save(panes []mux.PaneInfo) {
 			delete(p.Parked, k)
 		}
 	}
-	for k := range p.Declined {
-		if !live[k] {
-			delete(p.Declined, k)
+	for _, m := range []map[string]bool{p.Declined, p.Aside} {
+		for k := range m {
+			if !live[k] {
+				delete(m, k)
+			}
 		}
 	}
 	b, err := json.MarshalIndent(p, "", "  ")
@@ -236,13 +257,49 @@ func (a *App) parkPane(id, msg string) {
 	a.say(msg)
 }
 
-// unpark brings a parked pane back to the grid, as ⏎ on it does.
+// unpark brings a pane in the rail back to the grid, as ⏎ on it does: a parked or set-aside pane, or
+// one that went there by being quiet, which counts as quiet again from now.
 func (a *App) unpark(t tile) bool {
-	if a.park == nil || t.pane == nil || !t.parked {
+	if t.pane == nil {
 		return false
 	}
-	delete(a.park.Parked, paneIdentity(*t.pane))
-	a.park.save(a.panes)
+	back := t.place(time.Now()) == inQuiet
+	a.wake(t.pane.ID)
+	if a.park != nil && t.parked {
+		id := paneIdentity(*t.pane)
+		delete(a.park.Parked, id)
+		delete(a.park.Aside, id)
+		a.park.save(a.panes)
+		back = true
+	}
 	a.rebuild()
-	return true
+	return back
+}
+
+// wake restarts a pane's quiet: it stays in the grid at least quietAfter from now.
+func (a *App) wake(id string) {
+	if a.woke == nil {
+		a.woke = map[string]time.Time{}
+	}
+	a.woke[id] = time.Now()
+}
+
+// toggleAside sets the selected pane aside in the rail, or brings a pane in the rail back to the grid.
+func (a *App) toggleAside() {
+	t, ok := a.selected()
+	switch {
+	case !ok || !t.livePane():
+		a.say("only a running pane can be set aside")
+	case a.view != gridView:
+		a.say("panes are set aside in the grid view · v switches to it")
+	case t.place(time.Now()) != inGrid:
+		a.unpark(t)
+		a.say("back in the grid")
+	case a.park == nil:
+	default:
+		a.park.Aside[paneIdentity(*t.pane)] = true
+		a.park.save(a.panes)
+		a.rebuild()
+		a.say("set aside in the rail · s or ⏎ on it brings it back")
+	}
 }

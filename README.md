@@ -27,14 +27,16 @@ own, shows each one as a card with its live conversation, and keeps what needs y
   | ● | working   | a turn is in progress |
   | ○ | idle      | the turn ended; your move |
 
-- **Keeps the grid for what is happening.** Sessions idle for over an hour, inbox items and panes whose
-  program exited move to a rail on the right, two rows each, so the cards go to the sessions that are
-  working or waiting for you. A shell pane that only holds an SSH connection is offered the rail too:
+- **Keeps the grid for what is happening.** Sessions idle for over an hour, panes nobody typed into
+  and that printed nothing for as long, inbox items and panes whose program exited move to a rail on
+  the right, two rows each, so the cards go to the sessions that are working or waiting for you. A quiet
+  pane comes back on its own when it prints again or its agent needs you; `⏎` brings it back by hand,
+  and `s` sets any pane aside in the rail, or brings it back, whenever you like. A shell pane that only holds an SSH connection is offered the rail too:
   cockpit asks once a tunnel (`ssh -N`) has been quiet for a minute, or any other `ssh` or `mosh` for ten
   (`y` moves it, `n` keeps it in the grid, `a` always moves tunnels, or sessions to that host, without
   asking). `⏎` on a parked pane brings it back; it also comes back when the connection ends. The answers
-  live in `parking.json` next to the to-do list; delete it to be asked again. The grid picks its columns and rows from the window size and pages when
-  the cards don't fit. `v` switches to a list with a reading pane for the selected session.
+  live in `parking.json` next to the to-do list; delete it to be asked again. The grid picks its columns
+  and rows from the window size and pages when the cards don't fit. `v` switches to a list with a reading pane for the selected session.
 - **Runs agents in panes.** `n` starts Claude Code, Codex, agy or a shell inside a card: a real
   interactive terminal. The panes belong to a small background server (`cockpit serve`), so they keep
   running after you close the dashboard and come back when you reopen it. `⏎` on a pane whose program
@@ -113,6 +115,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts one level above the last pane's folder (at `~/Desktop/` the first time) and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
 | `r` | send a message to a Claude Code session; `alt-⏎`, or `\` then `⏎`, starts a new line, and pasted text keeps its lines |
 | `m` | read the selected Claude Code session's plan (`<config>/plans/<slug>.md`), rendered and updated live as the agent rewrites it: `j k` scroll, `space b` page, `[ ]` previous/next section, `g G` top/end, `r` sends feedback on the plan to the session, `esc` closes |
+| `s` | set the selected pane aside in the rail, or bring it back from there |
 | `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
 | `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |
 | drag | select text inside one pane, copied when you let go · click selects a card |

@@ -54,6 +54,7 @@ const (
 	actEditTask
 	actUndo
 	actPlan
+	actAside
 )
 
 // binding is a key as navigation mode sees it.
@@ -92,6 +93,7 @@ var navBindings = map[binding]action{
 	{keyRune, "e"}: actEditTask,
 	{keyRune, "u"}: actUndo,
 	{keyRune, "m"}: actPlan,
+	{keyRune, "s"}: actAside,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -263,6 +265,8 @@ func (a *App) navKey(k key) {
 		a.undoComplete()
 	case actPlan:
 		a.openPlan()
+	case actAside:
+		a.toggleAside()
 	}
 }
 

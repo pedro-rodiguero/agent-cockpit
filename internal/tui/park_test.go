@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
@@ -176,5 +177,73 @@ func TestParkedPaneComesBack(t *testing.T) {
 	a.tendParking(t0.Add(3 * time.Minute))
 	if len(parkedKeys(a)) != 0 {
 		t.Fatal("a pane whose ssh ended stayed parked")
+	}
+}
+
+// paneGrid is a 160×40 grid of n panes and nothing else, p1 selected.
+func paneGrid(t *testing.T, n int) (*App, *fakeServer) {
+	t.Helper()
+	a, fs := appWithPane()
+	now := time.Now()
+	fs.panes = nil
+	for i := 1; i <= n; i++ {
+		fs.panes = append(fs.panes, mux.PaneInfo{ID: "p" + string(rune('0'+i)), Agent: "shell", Cwd: "/tmp", PID: 100 + i, Started: now, LastIO: now})
+	}
+	a.snap.Sessions = nil
+	a.rebuild()
+	a.sel = paneKey("p1")
+	a.relayout()
+	return a, fs
+}
+
+// A pane nobody typed into and that printed nothing for quietAfter goes to the rail, unless it needs
+// the person; one brought back stays a while.
+func TestQuietPaneGoesToTheRail(t *testing.T) {
+	a, fs := paneGrid(t, 2)
+	old := time.Now().Add(-2 * quietAfter)
+	fs.panes[0].Started, fs.panes[0].LastIO = old, old
+	a.rebuild()
+	a.relayout()
+	i := a.index(paneKey("p1"))
+	if a.railN != 1 || a.tiles[i].place(time.Now()) != inQuiet {
+		t.Fatalf("rail %d, place %v", a.railN, a.tiles[i].place(time.Now()))
+	}
+	if lines, _ := a.compose(); len(lines) == 0 {
+		t.Fatal("nothing drawn")
+	}
+
+	// It comes back while its agent waits on the person.
+	a.snap.Sessions = []model.Session{{ID: "s1", Agent: "claude", PID: fs.panes[0].PID, State: model.Waiting, Since: old}}
+	a.rebuild()
+	if a.railN != 0 {
+		t.Fatal("a waiting pane stayed in the rail")
+	}
+	a.snap.Sessions = nil
+	a.rebuild()
+
+	// ⏎ on it brings it back for another quietAfter.
+	a.sel = paneKey("p1")
+	press(a, "\r")
+	if a.railN != 0 || a.mode != insertMode {
+		t.Fatalf("rail %d mode %v", a.railN, a.mode)
+	}
+}
+
+func TestSetAPaneAside(t *testing.T) {
+	a, _ := paneGrid(t, 3)
+	a.sel = paneKey("p2")
+	press(a, "s")
+	i := a.index(paneKey("p2"))
+	if a.tiles[i].place(time.Now()) != inParked || !a.park.Aside[paneIdentity(*a.tiles[i].pane)] {
+		t.Fatalf("place %v", a.tiles[i].place(time.Now()))
+	}
+	// The SSH rules do not bring back a pane set aside by hand.
+	a.tendParking(time.Now())
+	if a.railN != 1 {
+		t.Fatal("tendParking brought it back")
+	}
+	press(a, "s")
+	if a.railN != 0 || len(a.park.Aside) != 0 {
+		t.Fatalf("still aside: rail %d", a.railN)
 	}
 }

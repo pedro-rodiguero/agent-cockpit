@@ -42,9 +42,20 @@ var ErrNotRunning = errors.New("pane server is not running")
 
 // Connect attaches to a running server without starting one.
 func Connect() (*Client, error) {
-	conn, err := net.DialTimeout("unix", SocketPath(), 300*time.Millisecond)
+	sock := SocketPath()
+	if err := checkPrivateDir(filepath.Dir(sock)); err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotRunning
+		}
+		return nil, err
+	}
+	conn, err := net.DialTimeout("unix", sock, 300*time.Millisecond)
 	if err != nil {
 		return nil, ErrNotRunning
+	}
+	if err := samePeer(conn); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("pane server at %s: %w", sock, err)
 	}
 	return newClient(conn), nil
 }
@@ -82,7 +93,7 @@ func startServer() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(Dir(), 0o700); err != nil {
+	if err := ensurePrivateDir(Dir()); err != nil {
 		return err
 	}
 	logf, err := os.OpenFile(filepath.Join(Dir(), "serve.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)

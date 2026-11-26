@@ -100,7 +100,7 @@ func Dir() string {
 	if d, err := os.UserCacheDir(); err == nil {
 		return filepath.Join(d, "agent-cockpit")
 	}
-	return filepath.Join(os.TempDir(), "agent-cockpit")
+	return filepath.Join(os.TempDir(), fmt.Sprintf("agent-cockpit-%d", os.Getuid()))
 }
 
 // maxSocketPath is the longest socket path every Unix allows: sun_path holds 104 bytes on macOS and 108

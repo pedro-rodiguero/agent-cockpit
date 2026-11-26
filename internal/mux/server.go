@@ -72,14 +72,14 @@ func newServer() *Server {
 // Serve listens on SocketPath until the process exits. It refuses to start when another server is
 // already answering on the socket, and exits on its own after IdleExit with nothing to do.
 func Serve() error {
-	if err := os.MkdirAll(Dir(), 0o700); err != nil {
+	if err := ensurePrivateDir(Dir()); err != nil {
 		return err
 	}
 	sock := SocketPath()
 	if len(sock) > maxSocketPath {
 		return fmt.Errorf("socket path %s is longer than the %d bytes a Unix socket allows; set TMPDIR to a shorter folder", sock, maxSocketPath)
 	}
-	if err := os.MkdirAll(filepath.Dir(sock), 0o700); err != nil {
+	if err := ensurePrivateDir(filepath.Dir(sock)); err != nil {
 		return err
 	}
 	if c, err := net.DialTimeout("unix", sock, 300*time.Millisecond); err == nil {
@@ -107,6 +107,11 @@ func Serve() error {
 		conn, err := ln.Accept()
 		if err != nil {
 			return err
+		}
+		if err := samePeer(conn); err != nil {
+			log.Printf("refused a connection: %v", err)
+			conn.Close()
+			continue
 		}
 		go s.handle(conn)
 	}

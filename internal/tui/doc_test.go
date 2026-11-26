@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 )
@@ -161,5 +163,32 @@ func TestPlanFollowsPlansDirectory(t *testing.T) {
 	put(filepath.Join(filepath.Dir(proj), "outside", "steady-crafting-grove.md"), "# escaped")
 	if got := opened(); got != filepath.Join(proj, "docs", "plans", "steady-crafting-grove.md") {
 		t.Fatalf("a folder outside the project was followed: %s", got)
+	}
+}
+
+// Feedback can run over several lines: alt-enter, or a backslash before enter as in Claude Code, starts a
+// new one, and a pasted text keeps its own. The footer shows the end of it, where the cursor is.
+func TestFeedbackTakesSeveralLines(t *testing.T) {
+	a, path := planApp(t)
+	if err := os.WriteFile(path, []byte("# plan"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	press(a, "m", "r", "step 2 is too big", "\x1b\r", "split it\\", "\r", "\x1b[200~and test\r\nfirst\x1b[201~")
+	if a.mode != promptMode {
+		t.Fatal("enter after a backslash sent the feedback")
+	}
+	if got := string(a.prompt.text); got != "step 2 is too big\nsplit it\nand test\nfirst" {
+		t.Fatalf("text %q", got)
+	}
+	press(a, strings.Repeat("x", 200))
+	lines, cur := a.compose()
+	foot := ansi.Strip(lines[len(lines)-1])
+	if !cur.show || !strings.Contains(foot, "xxxx") || !strings.Contains(foot, "…") || width(foot) != a.w {
+		t.Fatalf("footer %q cursor %+v", foot, cur)
+	}
+	a.prompt.text = []rune("a\nb")
+	lines, _ = a.compose()
+	if foot := ansi.Strip(lines[len(lines)-1]); !strings.Contains(foot, "a↵b") {
+		t.Fatalf("newline shown as %q", foot)
 	}
 }

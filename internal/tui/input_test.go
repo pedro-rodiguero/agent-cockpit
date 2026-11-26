@@ -275,8 +275,13 @@ func TestPasteIntoPrompt(t *testing.T) {
 	a.snap.Sessions = []model.Session{{ID: "c", Agent: "claude", Name: "c", Socket: "/s", State: model.Idle}}
 	a.rebuild()
 	press(a, "r", "\x1b[200~yes\nplease\x1b[201~")
-	if a.prompt == nil || string(a.prompt.text) != "yes please" {
-		t.Fatalf("prompt = %+v", a.prompt)
+	if a.prompt == nil || string(a.prompt.text) != "yes\nplease" {
+		t.Fatalf("reply keeps the pasted lines: %+v", a.prompt)
+	}
+	a.onKeys([]key{{code: keyEsc}})
+	press(a, "+", "\x1b[200~call\nthe venue\x1b[201~")
+	if a.prompt == nil || string(a.prompt.text) != "call the venue" {
+		t.Fatalf("a task stays on one line: %+v", a.prompt)
 	}
 }
 

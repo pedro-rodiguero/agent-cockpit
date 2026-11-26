@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 )
 
@@ -449,13 +451,21 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 			line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
 		}
 	case promptReply, promptTask, promptFeedback:
-		line = paint(cGold, cPanel, " "+pr.label+" ▸ ") + paint(cInk, cPanel, string(pr.text))
+		line = paint(cGold, cPanel, " "+pr.label+" ▸ ")
+		// New lines show as ↵, and a text longer than the room shows its end, where the cursor is.
+		text := strings.ReplaceAll(string(pr.text), "\n", "↵")
+		if room := w - width(line) - 1; width(text) > room && room > 1 {
+			text = "…" + ansi.TruncateLeft(text, width(text)-(room-1), "")
+		}
+		line += paint(cInk, cPanel, text)
 		cur = cursor{x: width(line), y: y, show: true}
-		hint := "   ⏎ send · esc cancel"
+		hint := "   ⏎ send · alt-⏎ new line · esc cancel"
 		if pr.kind == promptTask {
 			hint = "   #group @date (today, tomorrow, 25/12) · ⏎ save · esc cancel"
 		}
-		line += paint(cFaint, cPanel, hint)
+		if width(line)+width(hint) <= w {
+			line += paint(cFaint, cPanel, hint)
+		}
 	case promptConfirm:
 		line = paint(cWaiting, cPanel, " "+pr.label)
 	}

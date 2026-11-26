@@ -729,8 +729,15 @@ func (pr *prompt) ghost() string {
 
 // insert adds typed or pasted text; control characters (a pasted newline) become spaces so the prompt
 // stays on one line.
+// multiline reports whether the prompt takes several lines: messages for a session do.
+func (pr *prompt) multiline() bool { return pr.kind == promptReply || pr.kind == promptFeedback }
+
 func (pr *prompt) insert(s string) {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
 	pr.text = append(pr.text, []rune(strings.Map(func(r rune) rune {
+		if r == '\n' && pr.multiline() {
+			return r
+		}
 		if unicode.IsControl(r) {
 			return ' '
 		}
@@ -767,6 +774,10 @@ func (a *App) promptKey(k key) {
 		a.answer(k)
 	case k.code == keyEsc || k.isCtrl("c"):
 		a.closePrompt()
+	case k.code == keyEnter && pr.multiline() && k.alt:
+		pr.text = append(pr.text, '\n')
+	case k.code == keyEnter && pr.multiline() && len(pr.text) > 0 && pr.text[len(pr.text)-1] == '\\':
+		pr.text[len(pr.text)-1] = '\n' // as in Claude Code: a backslash before enter starts a new line
 	case k.code == keyEnter:
 		a.submit()
 	case k.code == keyBackspace:

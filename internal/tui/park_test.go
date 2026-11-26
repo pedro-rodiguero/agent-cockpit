@@ -212,6 +212,15 @@ func TestQuietPaneGoesToTheRail(t *testing.T) {
 		t.Fatal("nothing drawn")
 	}
 
+	// A pane server that does not report activity leaves its panes in the grid, however old they are.
+	fs.panes[0].LastIO = time.Time{}
+	a.rebuild()
+	if a.railN != 0 {
+		t.Fatal("a pane with no known activity was taken for quiet since it started")
+	}
+	fs.panes[0].LastIO = old
+	a.rebuild()
+
 	// It comes back while its agent waits on the person.
 	a.snap.Sessions = []model.Session{{ID: "s1", Agent: "claude", PID: fs.panes[0].PID, State: model.Waiting, Since: old}}
 	a.rebuild()

@@ -167,8 +167,10 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, n
 	merged := map[int]bool{}
 	tiles := make([]tile, 0, len(sessions)+len(panes))
 	for i := range panes {
-		t := tile{key: paneKey(panes[i].ID), pane: &panes[i], parked: pl.parked[paneIdentity(panes[i])], rested: quietSince(panes[i])}
-		if w := pl.woke[panes[i].ID]; w.After(t.rested) {
+		// A pane server older than LastIO does not say when a pane was last used: its panes are never
+		// taken for quiet, rather than quiet since they started.
+		t := tile{key: paneKey(panes[i].ID), pane: &panes[i], parked: pl.parked[paneIdentity(panes[i])], rested: panes[i].LastIO}
+		if w := pl.woke[panes[i].ID]; !t.rested.IsZero() && w.After(t.rested) {
 			t.rested = w
 		}
 		if j, ok := byPID[panes[i].PID]; ok {

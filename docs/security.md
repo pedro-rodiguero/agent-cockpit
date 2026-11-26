@@ -20,6 +20,25 @@ server only listen on the user's own Unix socket.
 Actions are pinned by commit SHA and the tool images by digest; Dependabot updates the actions, and the
 images are updated by hand, version and digest together.
 
+## The local side
+
+The pane server's socket accepts "run this command", so reaching it means running anything as the user.
+
+- **Socket.** It lives in a directory only the user can enter (`0700`, the socket `0600`), under the user
+  cache directory, or a per-user folder under the temporary directory when that path is too long. The
+  server and the client both refuse a directory that is a link, belongs to someone else or others can
+  enter, so nobody can make the folder first under a shared `/tmp` and receive the keystrokes; the server
+  also refuses any connection from another user (`LOCAL_PEERCRED` on macOS, `SO_PEERCRED` on Linux).
+  Tests: `internal/mux/private_test.go`.
+- **Pastes.** Pasted text reaches a pane with every ESC and bracketed-paste end marker taken out, so it
+  can neither end the paste early nor send keys (`internal/mux/paste_test.go`); a file dropped on the
+  menubar terminal loses its control characters before its path is typed.
+- **Agent text.** The plan viewer strips every control character and escape sequence from the Markdown
+  before laying it out (`internal/tui/markdown_test.go`); agent output never reaches the outer terminal
+  as sequences, only as the cells the emulator drew.
+- **What a pane can do.** Agents start through the user's login shell with `exec`, so no shell is left
+  under them when they exit; a pane has exactly the rights of the user who runs cockpit.
+
 **Regression rule.** A flaw found by any means (the suite, fuzzing, Semgrep, ZAP, a report) first becomes a
 test that fails, and only then is fixed. A fuzzing failure leaves its input in `testdata/fuzz/`; committed,
 it becomes a regular test case.

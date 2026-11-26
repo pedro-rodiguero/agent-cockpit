@@ -462,7 +462,6 @@ func (r *mdRenderer) wrapSpans(spans []span, first, rest string, base rgb) []str
 			out = append(out, line)
 			prefix = rest
 			line, used, empty = prefix, width(prefix), true
-			need = width(wd.text)
 		}
 		text := wd.text
 		if !empty && wd.space {

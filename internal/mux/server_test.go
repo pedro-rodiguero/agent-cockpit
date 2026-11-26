@@ -178,3 +178,47 @@ func TestHistoryReadsTheScrollback(t *testing.T) {
 	}
 	s.close(id)
 }
+
+// A screen a client had no room for goes out again on the next tick, even when the pane prints
+// nothing more: otherwise the client keeps an older screen, such as one taken while a program had
+// hidden its cursor to redraw.
+func TestMissedScreenIsSentAgain(t *testing.T) {
+	s := newServer()
+	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6, Args: []string{"/bin/sh", "-c", "sleep 30"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close(id)
+	p := s.get(id)
+	full := &client{out: make(chan Msg), done: make(chan struct{})} // no room: every send fails
+	s.mu.Lock()
+	s.clients[full] = true
+	s.mu.Unlock()
+
+	p.mu.Lock()
+	p.dirty = true
+	p.mu.Unlock()
+	s.broadcastOnce()
+	p.mu.Lock()
+	still := p.dirty
+	p.mu.Unlock()
+	if !still {
+		t.Fatal("the missed screen was forgotten")
+	}
+
+	s.mu.Lock()
+	delete(s.clients, full)
+	room := &client{out: make(chan Msg, 8), done: make(chan struct{})}
+	s.clients[room] = true
+	s.mu.Unlock()
+	s.broadcastOnce()
+	var got bool
+	for len(room.out) > 0 {
+		if m := <-room.out; m.Op == OpScreen && m.Screen.ID == id {
+			got = true
+		}
+	}
+	if !got {
+		t.Fatal("the screen was not sent again")
+	}
+}

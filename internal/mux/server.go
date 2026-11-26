@@ -489,39 +489,50 @@ func (s *Server) broadcast() {
 	t := time.NewTicker(frameInterval)
 	defer t.Stop()
 	for range t.C {
-		s.mu.Lock()
-		if len(s.clients) == 0 {
-			s.mu.Unlock()
-			continue
-		}
-		var dirty []*pane
-		for _, id := range s.order {
-			p := s.panes[id]
-			p.mu.Lock()
-			if p.dirty {
-				dirty = append(dirty, p)
-			}
-			p.mu.Unlock()
-		}
-		changed := s.changed
-		s.changed = false
-		list := s.listLocked()
-		clients := make([]*client, 0, len(s.clients))
-		for c := range s.clients {
-			clients = append(clients, c)
-		}
-		s.mu.Unlock()
+		s.broadcastOnce()
+	}
+}
 
-		screens := make([]Msg, 0, len(dirty))
-		for _, p := range dirty {
-			screens = append(screens, Msg{Op: OpScreen, Screen: p.screen()})
+// broadcastOnce sends the pane list when it changed and the screen of every pane that changed. A
+// screen a client had no room for is sent again on the next tick: the last screen of a burst, such as
+// the one that shows the cursor again after a program redrew, must not be lost while the pane is quiet.
+func (s *Server) broadcastOnce() {
+	s.mu.Lock()
+	if len(s.clients) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	var dirty []*pane
+	for _, id := range s.order {
+		p := s.panes[id]
+		p.mu.Lock()
+		if p.dirty {
+			dirty = append(dirty, p)
 		}
-		for _, c := range clients {
-			if changed && !c.send(Msg{Op: OpPanes, Panes: list}) {
-				s.touch() // the list is not a snapshot that repeats on its own; retry next tick
-			}
-			for _, m := range screens {
-				c.send(m)
+		p.mu.Unlock()
+	}
+	changed := s.changed
+	s.changed = false
+	list := s.listLocked()
+	clients := make([]*client, 0, len(s.clients))
+	for c := range s.clients {
+		clients = append(clients, c)
+	}
+	s.mu.Unlock()
+
+	screens := make([]Msg, 0, len(dirty))
+	for _, p := range dirty {
+		screens = append(screens, Msg{Op: OpScreen, Screen: p.screen()})
+	}
+	for _, c := range clients {
+		if changed && !c.send(Msg{Op: OpPanes, Panes: list}) {
+			s.touch() // the list is not a snapshot that repeats on its own; retry next tick
+		}
+		for i, m := range screens {
+			if !c.send(m) {
+				dirty[i].mu.Lock()
+				dirty[i].dirty = true
+				dirty[i].mu.Unlock()
 			}
 		}
 	}

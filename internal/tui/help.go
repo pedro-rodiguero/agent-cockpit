@@ -20,7 +20,7 @@ var helpKeys = [][]keyHint{
 		{"o", "go to the session's terminal tab"},
 		{"p", "move a session from its terminal tab into a pane"},
 		{"r", "send a message to a Claude Code session · alt-⏎ or \\⏎ starts a new line"},
-		{"m", "read the session's plan, live as it changes · r sends feedback on it"},
+		{"m", "read the session's plan, live as it changes, even before plan mode writes it · r sends feedback"},
 		{"n", "new pane"},
 		{"x", "close a pane, stopping its agent; delete a task"},
 		{"s", "set a pane aside in the rail, or bring it back · quiet panes go there on their own"},

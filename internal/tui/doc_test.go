@@ -94,13 +94,17 @@ func TestPlanViewer(t *testing.T) {
 }
 
 func TestPlanViewerWithoutAPlan(t *testing.T) {
-	a, _ := planApp(t)
+	a, path := planApp(t)
+	// Claude Code names every session: a name alone is no plan.
 	press(a, "m")
-	if a.doc != nil || !strings.Contains(a.flash.text, "plan not found") {
-		t.Fatalf("missing file: doc %v flash %q", a.doc, a.flash.text)
+	if a.doc != nil || !strings.Contains(a.flash.text, "no plan yet") {
+		t.Fatalf("no file: doc %v flash %q", a.doc, a.flash.text)
+	}
+	if strings.Contains(a.footerKeys(a.w, func(k, d string) string { return k + " " + d + " " }), "plan") {
+		t.Fatal("the footer offers a plan that does not exist")
 	}
 	for _, evil := range []string{"../../.ssh/notes", "a/b", "..", "x\x1b[2J"} {
-		a.convs["s1"] = chat.Conversation{Info: chat.Info{Plan: evil}}
+		a.convs["s1"] = chat.Conversation{Info: chat.Info{Plan: evil, Mode: "plan"}}
 		press(a, "m")
 		if a.doc != nil || !strings.Contains(a.flash.text, "not a plan name") {
 			t.Fatalf("slug %q: doc %v flash %q", evil, a.doc, a.flash.text)
@@ -108,8 +112,53 @@ func TestPlanViewerWithoutAPlan(t *testing.T) {
 	}
 	a.convs["s1"] = chat.Conversation{}
 	press(a, "m")
-	if a.doc != nil || !strings.Contains(a.flash.text, "not been in plan mode") {
+	if a.doc != nil || !strings.Contains(a.flash.text, "no plan yet") {
 		t.Fatalf("no slug: doc %v flash %q", a.doc, a.flash.text)
+	}
+
+	// In plan mode the viewer opens before the plan exists and shows it once Claude writes it.
+	a.convs["s1"] = chat.Conversation{Info: chat.Info{Plan: "steady-crafting-grove", Mode: "plan"}}
+	if !strings.Contains(a.footerKeys(a.w, func(k, d string) string { return k + " " + d + " " }), "plan") {
+		t.Fatal("no plan hint for a session in plan mode")
+	}
+	press(a, "m")
+	if a.doc == nil || !strings.Contains(screenText(a), "waiting for the plan") {
+		t.Fatalf("plan mode: doc %v flash %q", a.doc, a.flash.text)
+	}
+	if err := os.WriteFile(path, []byte("# Ship it\n\nfirst step\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := screenText(a); !strings.Contains(got, "Ship it") || strings.Contains(got, "waiting for the plan") {
+		t.Fatalf("after the write:\n%s", got)
+	}
+}
+
+// Typing into a pane, m goes to the agent: a plan it writes or changes is pointed out in the footer.
+func TestPlanChangeInAPaneIsPointedOut(t *testing.T) {
+	a, _ := paneWithPlan(t, "plan ready")
+	press(a, "q") // close the viewer the helper opened
+	a.mode = insertMode
+	path, _ := a.planFile(a.tiles[a.index(paneKey("p1"))])
+	now := time.Now()
+	if err := os.Chtimes(path, now, now); err != nil {
+		t.Fatal(err)
+	}
+	a.notePlan(now)
+	if !strings.Contains(a.flash.text, "ctrl-q then m") {
+		t.Fatalf("a new plan was not pointed out: %q", a.flash.text)
+	}
+	a.flash = flash{}
+	a.notePlan(now)
+	if a.flash.text != "" {
+		t.Fatalf("an unchanged plan was pointed out again: %q", a.flash.text)
+	}
+	later := now.Add(time.Minute)
+	if err := os.Chtimes(path, later, later); err != nil {
+		t.Fatal(err)
+	}
+	a.notePlan(later)
+	if !strings.Contains(a.flash.text, "the plan changed") {
+		t.Fatalf("a changed plan was not pointed out: %q", a.flash.text)
 	}
 }
 

@@ -30,7 +30,8 @@ type docView struct {
 	mtime    time.Time
 	updated  time.Time // when the file last changed while open
 	missing  bool
-	bodyRows int // rows the last frame had for the document, for paging
+	seen     bool // the file existed at some point while open
+	bodyRows int  // rows the last frame had for the document, for paging
 }
 
 // planPaths are where a Claude Code session's plan may be, most likely first: in the plansDirectory its
@@ -96,30 +97,78 @@ func validSlug(s string) bool {
 	return true
 }
 
-// openPlan shows the selected session's plan.
+// planFile is where the session's plan is, or will be once Claude Code writes it, and whether it is
+// there now. Claude Code names every session, plan or not, so a name alone does not mean a plan.
+func (a *App) planFile(t tile) (path string, exists bool) {
+	if t.sess == nil || t.sess.Agent != "claude" {
+		return "", false
+	}
+	slug := a.convs[t.sess.ID].Info.Plan
+	if !validSlug(slug) {
+		return "", false
+	}
+	paths := planPaths(t.sess.SessionsDir, t.sess.Cwd, slug)
+	for _, p := range paths {
+		if isFile(p) {
+			return p, true
+		}
+	}
+	return paths[0], false // the first place Claude Code would write it
+}
+
+// hasPlan reports whether m has something to show for the tile: a plan, or a session in plan mode
+// whose plan is still to be written.
+func (a *App) hasPlan(t tile) bool {
+	path, exists := a.planFile(t)
+	return exists || (path != "" && a.convs[t.sess.ID].Info.Mode == "plan")
+}
+
+// openPlan shows the selected session's plan. A session in plan mode that has not written it yet gets
+// the viewer anyway, waiting: the plan shows up in it as Claude writes it.
 func (a *App) openPlan() {
 	t, ok := a.selected()
 	if !ok || t.sess == nil || t.sess.Agent != "claude" {
 		a.say("m shows the plan of a Claude Code session")
 		return
 	}
-	slug := a.convs[t.sess.ID].Info.Plan
-	if slug == "" {
-		a.say("no plan yet: " + t.name() + " has not been in plan mode")
-		return
-	}
-	if !validSlug(slug) {
+	if slug := a.convs[t.sess.ID].Info.Plan; slug != "" && !validSlug(slug) {
 		a.say("not opening the plan: its name in the transcript is not a plan name")
 		return
 	}
-	paths := planPaths(t.sess.SessionsDir, t.sess.Cwd, slug)
-	for _, path := range paths {
-		if isFile(path) {
-			a.doc = &docView{path: path, title: "plan · " + t.name(), target: t}
-			return
-		}
+	path, exists := a.planFile(t)
+	if path == "" || (!exists && !a.hasPlan(t)) {
+		a.say("no plan yet: " + t.name() + " has not written one · m opens it once plan mode starts")
+		return
 	}
-	a.say("plan not found: " + tilde(paths[len(paths)-1]))
+	a.doc = &docView{path: path, title: "plan · " + t.name(), target: t}
+}
+
+// planFresh is how recent a plan seen for the first time must be to count as just written.
+const planFresh = 10 * time.Second
+
+// notePlan tells the person typing into a pane that its agent wrote or changed its plan: m, the key that
+// shows it, goes to the agent while they type.
+func (a *App) notePlan(now time.Time) {
+	t, ok := a.selected()
+	if !ok || a.mode != insertMode || t.pane == nil {
+		return
+	}
+	path, exists := a.planFile(t)
+	if !exists {
+		return
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	if a.planSeen == nil {
+		a.planSeen = map[string]time.Time{}
+	}
+	last, known := a.planSeen[path]
+	a.planSeen[path] = fi.ModTime()
+	if (known && fi.ModTime().After(last)) || (!known && now.Sub(fi.ModTime()) < planFresh) {
+		a.say("the plan changed · ctrl-q then m reads it, live, and r sends feedback")
+	}
 }
 
 func isFile(p string) bool {
@@ -143,6 +192,7 @@ func (d *docView) load(w int) {
 		d.missing = true
 		return
 	}
+	d.seen = true
 	if d.lines != nil && (fi.Size() != d.size || !fi.ModTime().Equal(d.mtime)) {
 		d.updated = time.Now()
 	}
@@ -178,6 +228,8 @@ func (a *App) docBody(w, h int) []string {
 
 	margin := paint(cInk, cBg, "  ")
 	switch {
+	case d.missing && !d.seen:
+		out = append(out, pad(margin+paint(cMuted, cBg, "waiting for the plan · it shows up here as Claude writes it"), w, cBg))
 	case d.missing:
 		out = append(out, pad(margin+paint(cStuck, cBg, "the file is gone: "+tilde(d.path)), w, cBg))
 	case len(d.lines) == 0:

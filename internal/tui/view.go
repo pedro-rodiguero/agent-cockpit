@@ -355,7 +355,7 @@ func (a *App) footerKeys(w int, key func(k, d string) string) string {
 		for _, k := range tileKeys(t) {
 			own += key(k.key, k.does)
 		}
-		if t.sess != nil && a.convs[t.sess.ID].Info.Plan != "" {
+		if a.hasPlan(t) {
 			own += key("m", "plan")
 		}
 		own += paint(cLine, cBg, "│  ")

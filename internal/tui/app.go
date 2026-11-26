@@ -149,6 +149,7 @@ type App struct {
 	park          *parking                 // SSH panes moved to the rail, and the answers that move them
 	parkSnooze    map[string]time.Time     // paneIdentity → when to ask about parking it again
 	woke          map[string]time.Time     // pane ID → when the person last brought it back or typed into it
+	planSeen      map[string]time.Time     // plan file → its time when last looked at, to notice changes
 	arr           *arrangement             // the order and sizes the person gave the grid's cards
 	drag          *cardDrag                // a card being moved or resized with the mouse
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
@@ -428,6 +429,7 @@ func (a *App) handle(ev event) {
 		a.updateLabels()
 		a.runPendingMoves()
 		a.tendParking(time.Now())
+		a.notePlan(time.Now())
 	case evPanes:
 		a.muxPending.Store(false)
 		a.rebuild()

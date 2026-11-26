@@ -37,8 +37,11 @@ final class DropTerminalView: LocalProcessTerminalView {
 }
 
 /// shellEscaped backslash-escapes the characters a shell would split or expand, the way Terminal writes
-/// a dropped path.
+/// a dropped path. Control characters are dropped first: a file name may hold ESC and newlines, and with
+/// them could end a bracketed paste early or submit a command line of its own.
 private func shellEscaped(_ path: String) -> String {
     let special = Set(" \t\\'\"()[]{}&;|<>*?$`!#~=%")
-    return String(path.flatMap { special.contains($0) ? ["\\", $0] : [$0] })
+    var printable = String.UnicodeScalarView()
+    printable.append(contentsOf: path.unicodeScalars.filter { $0.value >= 0x20 && !(0x7f...0x9f).contains($0.value) })
+    return String(String(printable).flatMap { special.contains($0) ? ["\\", $0] : [$0] })
 }

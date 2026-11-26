@@ -15,6 +15,8 @@ Antigravity CLI 1.5.10, on macOS 15. Linux is built and tested in CI.
 | in the same transcript: `slug` on `user`/`assistant` records, naming the plan file `<config>/plans/<slug>.md`, or `<plansDirectory>/<slug>.md` when the project's local, project or the profile's user settings set `plansDirectory` (relative to the project; outside it is ignored, as Claude Code does) | `m` (plan viewer) |
 | `claude --resume <sessionId>` | moving a session into a pane |
 | the messaging socket: newline-delimited JSON, an optional `{"type":"auth","token"}` frame using the token in `<config>/sessions/<pid>.<sha256(socket path)>.key`, then a `user` frame wrapped in `<cross-session-message>` | `r` (reply) |
+| a message from a sender whose permission mode differs from the session's (cockpit sends as `bypass`) is held until the session's user approves it, unless its `crossSessionInbound` setting is `accept` | the warning after a reply to a session not in bypass mode |
+| the plan approval menu: an option `<n>. Tell Claude what to change` that opens a feedback field taking a paste and Enter | plan feedback typed into a pane |
 
 Claude Code writes the session file only for interactive sessions that are not children of another
 session. That is why the pane server removes `CLAUDECODE` and `CLAUDE_CODE_*` from the environment it

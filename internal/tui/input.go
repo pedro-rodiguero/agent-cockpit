@@ -869,7 +869,7 @@ func (a *App) submit() {
 	case promptFeedback:
 		a.closePrompt()
 		if text != "" && a.doc != nil {
-			a.sendReply(pr.target, feedbackMessage(a.doc.path, text))
+			a.sendFeedback(pr.target, a.doc.path, text)
 		}
 	case promptTask:
 		a.closePrompt()
@@ -896,13 +896,24 @@ func (a *App) startPane(l launcher, typed string) {
 
 func (a *App) sendReply(t tile, text string) {
 	s, name := t.sess, t.name()
+	sent := "sent to " + name + heldNote(a.convs[s.ID].Info.Mode)
 	a.goSafe(func() {
 		if err := peer.Send(s.SessionsDir, s.PID, s.NativeID, s.Socket, text); err != nil {
 			a.post(event{kind: evFlash, msg: "reply failed: " + err.Error()})
 			return
 		}
-		a.post(event{kind: evFlash, msg: "sent to " + name})
+		a.post(event{kind: evFlash, msg: sent})
 	})
+}
+
+// heldNote warns that a message may wait for approval. cockpit speaks as a bypass-mode sender, and Claude
+// Code holds a message from a sender whose permission mode differs from the session's until its user
+// approves it in the session's terminal (unless the session's crossSessionInbound setting is "accept").
+func heldNote(mode string) string {
+	if mode == "bypass" {
+		return ""
+	}
+	return " · Claude may hold it until you approve it in that terminal"
 }
 
 func isDir(p string) bool {

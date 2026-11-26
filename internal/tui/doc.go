@@ -4,8 +4,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
 // docView shows a Markdown file over the body, read again whenever it changes on disk: a session's plan
@@ -244,13 +249,68 @@ func (a *App) docKey(k key) {
 func (a *App) promptFeedback() {
 	t := a.doc.target
 	if i := a.index(t.key); i >= 0 {
-		t = a.tiles[i] // the session as it is now: its socket may have changed
+		t = a.tiles[i] // the session as it is now: its pane or socket may have changed
 	}
-	if !t.canReply() {
-		a.say("feedback needs a Claude Code session cockpit can message; " + t.name() + " has no messaging socket")
+	if !(t.livePane() && a.mc != nil) && !t.canReply() {
+		a.say("feedback needs a Claude Code session in a pane or with a messaging socket; " + t.name() + " has neither")
 		return
 	}
 	a.openPrompt(&prompt{kind: promptFeedback, target: t, label: "feedback on the plan"})
+}
+
+// feedbackGap is the pause between the keystrokes that answer the approval menu: Claude Code has to
+// draw the feedback field before text typed into it lands there.
+var feedbackGap = 300 * time.Millisecond
+
+// menuChoice matches the approval menu's option for feedback, "❯ 3. Tell Claude what to change".
+var menuChoice = regexp.MustCompile(`(\d+)\.\s+Tell Claude what to change`)
+
+// sendFeedback delivers feedback on the open plan to its session. Claude Code holds a message from
+// another session whose permission mode differs from its own, so in a pane the feedback is typed,
+// as the person would: on the plan's approval menu, into its "Tell Claude what to change" field, and
+// otherwise as the next message. A session in a terminal tab gets it through its messaging socket.
+func (a *App) sendFeedback(t tile, path, text string) {
+	if !t.livePane() || a.mc == nil {
+		a.sendReply(t, feedbackMessage(path, text))
+		return
+	}
+	var steps []mux.Msg
+	id := t.pane.ID
+	if choice := approvalChoice(a.mc.Screen(id)); choice != "" {
+		steps = append(steps, mux.Msg{Op: mux.OpInput, ID: id, Data: []byte(choice)},
+			mux.Msg{Op: mux.OpPaste, ID: id, Data: []byte(text)})
+	} else {
+		steps = append(steps, mux.Msg{Op: mux.OpPaste, ID: id, Data: []byte(feedbackMessage(path, text))})
+	}
+	steps = append(steps, mux.Msg{Op: mux.OpInput, ID: id, Data: []byte("\r")})
+	delete(a.scrollBack, id)
+	mc, name, gap := a.mc, t.name(), feedbackGap
+	a.goSafe(func() {
+		for i, m := range steps {
+			if i > 0 {
+				time.Sleep(gap)
+			}
+			if err := mc.Send(m); err != nil {
+				a.post(event{kind: evFlash, msg: "feedback failed: " + err.Error()})
+				return
+			}
+		}
+		a.post(event{kind: evFlash, msg: "feedback typed into " + name})
+	})
+}
+
+// approvalChoice is the number to press for "Tell Claude what to change" when the plan's approval menu
+// is on the pane's screen, or "".
+func approvalChoice(scr *mux.Screen) string {
+	if scr == nil {
+		return ""
+	}
+	for _, l := range scr.Lines {
+		if m := menuChoice.FindStringSubmatch(ansi.Strip(l)); m != nil {
+			return m[1]
+		}
+	}
+	return ""
 }
 
 // feedbackMessage is what the session receives: the feedback, saying which document it is about.

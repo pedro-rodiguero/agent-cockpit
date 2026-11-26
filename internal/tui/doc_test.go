@@ -5,11 +5,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/chat"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
+	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
 // planApp is a list with one Claude session whose plan file is at path.
@@ -190,5 +192,85 @@ func TestFeedbackTakesSeveralLines(t *testing.T) {
 	lines, _ = a.compose()
 	if foot := ansi.Strip(lines[len(lines)-1]); !strings.Contains(foot, "a↵b") {
 		t.Fatalf("newline shown as %q", foot)
+	}
+}
+
+// paneWithPlan is a live pane running a Claude session that has a plan, with the plan open.
+func paneWithPlan(t *testing.T, screen ...string) (*App, *fakeServer) {
+	t.Helper()
+	cfg := t.TempDir()
+	path := filepath.Join(cfg, "plans", "p.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("# plan"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, fs := appWithPane()
+	a.snap.Sessions = []model.Session{{ID: "s1", Agent: "claude", Name: "api", PID: 4242, SessionsDir: filepath.Join(cfg, "sessions")}}
+	a.convs = map[string]chat.Conversation{"s1": {Info: chat.Info{Plan: "p", Mode: "plan"}}}
+	fs.screen = &mux.Screen{ID: "p1", Lines: screen}
+	a.rebuild()
+	a.sel = paneKey("p1")
+	feedbackGap = time.Millisecond
+	press(a, "m")
+	if a.doc == nil {
+		t.Fatalf("plan not opened: %q", a.flash.text)
+	}
+	return a, fs
+}
+
+func waitOps(t *testing.T, fs *fakeServer, n int) []mux.Msg {
+	t.Helper()
+	for end := time.Now().Add(2 * time.Second); time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+		var got []mux.Msg
+		fs.mu.Lock()
+		sent := append([]mux.Msg(nil), fs.sent...)
+		fs.mu.Unlock()
+		for _, m := range sent {
+			if m.Op == mux.OpInput || m.Op == mux.OpPaste {
+				got = append(got, m)
+			}
+		}
+		if len(got) >= n {
+			return got
+		}
+	}
+	t.Fatalf("fewer than %d keystrokes reached the pane: %+v", n, fs.sent)
+	return nil
+}
+
+// Claude Code holds a message from another session whose permission mode differs, so feedback for a
+// pane is typed into it, as the person would: on the plan's approval menu it picks "Tell Claude what to
+// change" and types the feedback there.
+func TestFeedbackOnTheApprovalMenuIsTypedIntoIt(t *testing.T) {
+	a, fs := paneWithPlan(t,
+		" Claude has written up a plan and is ready to execute. Would you like to proceed?",
+		"   1. Yes, and use auto mode",
+		"   2. Yes, manually approve edits",
+		" ❯ 4. Tell Claude what to change",
+	)
+	press(a, "r", "use greeting.txt", "\x1b\r", "and hello", "\r")
+	got := waitOps(t, fs, 3)
+	if got[0].Op != mux.OpInput || string(got[0].Data) != "4" ||
+		got[1].Op != mux.OpPaste || string(got[1].Data) != "use greeting.txt\nand hello" ||
+		got[2].Op != mux.OpInput || string(got[2].Data) != "\r" {
+		t.Fatalf("keystrokes %+v", got)
+	}
+}
+
+func TestFeedbackWithoutTheMenuIsAMessage(t *testing.T) {
+	a, fs := paneWithPlan(t, " > ", "   ⏸ plan mode on")
+	press(a, "r", "shorter please", "\r")
+	got := waitOps(t, fs, 2)
+	if got[0].Op != mux.OpPaste || !strings.HasPrefix(string(got[0].Data), "Feedback on your plan (") ||
+		!strings.HasSuffix(string(got[0].Data), "shorter please") || string(got[1].Data) != "\r" {
+		t.Fatalf("keystrokes %+v", got)
+	}
+}
+
+func TestHeldNote(t *testing.T) {
+	if heldNote("bypass") != "" || !strings.Contains(heldNote("plan"), "approve") || !strings.Contains(heldNote(""), "approve") {
+		t.Fatal("a session outside bypass mode may hold the message; one in it does not")
 	}
 }

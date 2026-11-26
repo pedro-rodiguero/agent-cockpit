@@ -2,6 +2,8 @@ module github.com/pedro-rodiguero/agent-cockpit
 
 go 1.26.11
 
+toolchain go1.27.4
+
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.7

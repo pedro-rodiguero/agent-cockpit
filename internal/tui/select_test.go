@@ -3,11 +3,13 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/mux"
 )
 
@@ -167,8 +169,17 @@ func TestClickOnAPaneTypesIntoIt(t *testing.T) {
 
 // Two clicks copy the word or URL under the pointer, without what wraps it; three copy the line.
 func TestDoubleAndTripleClickCopy(t *testing.T) {
+	var mu sync.Mutex
 	var copied []string
-	clipboard = func(s string) error { copied = append(copied, s); return nil }
+	clipboard = func(s string) error { mu.Lock(); copied = append(copied, s); mu.Unlock(); return nil }
+	got := func(n int) (string, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(copied) < n {
+			return "", false
+		}
+		return copied[n-1], true
+	}
 	t.Cleanup(func() { clipboard = copyToClipboard })
 	a, fs := appWithPane()
 	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"see (https://example.com/a?b=1). ok"}}
@@ -189,15 +200,13 @@ func TestDoubleAndTripleClickCopy(t *testing.T) {
 	click()
 	click()
 	wait := func(n int) string {
-		for end := time.Now().Add(2 * time.Second); len(copied) < n && time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
-			for len(a.events) > 0 {
-				a.handle(<-a.events)
+		for end := time.Now().Add(2 * time.Second); time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+			if s, ok := got(n); ok {
+				return s
 			}
 		}
-		if len(copied) < n {
-			t.Fatalf("nothing copied (have %q)", copied)
-		}
-		return copied[n-1]
+		t.Fatalf("copy %d never happened", n)
+		return ""
 	}
 	if got := wait(1); got != "https://example.com/a?b=1" {
 		t.Fatalf("double click copied %q", got)
@@ -205,5 +214,27 @@ func TestDoubleAndTripleClickCopy(t *testing.T) {
 	click()
 	if got := wait(2); got != "see (https://example.com/a?b=1). ok" {
 		t.Fatalf("triple click copied %q", got)
+	}
+}
+
+// A click on the rail while typing into a pane leaves the pane, as ctrl-q does.
+func TestClickOnTheRailLeavesThePane(t *testing.T) {
+	a, _ := appWithPane()
+	a.snap.Sessions[1].State = model.Idle
+	a.snap.Sessions[1].Since = time.Now().Add(-2 * quietAfter) // goes to the rail
+	a.rebuild()
+	a.relayout()
+	if a.lay.rail.w == 0 {
+		t.Fatal("no rail to click")
+	}
+	a.sel = paneKey("p1")
+	press(a, "\r")
+	if a.mode != insertMode {
+		t.Fatal("not typing into the pane")
+	}
+	r := a.lay.rail
+	press(a, mouse(0, r.x+5, r.y+r.h-2, false), mouse(0, r.x+5, r.y+r.h-2, true))
+	if a.mode != navMode || a.zoom {
+		t.Fatalf("still typing: mode %v zoom %v", a.mode, a.zoom)
 	}
 }

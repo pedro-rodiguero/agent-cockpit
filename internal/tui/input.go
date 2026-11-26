@@ -409,6 +409,9 @@ func (a *App) activate() {
 	switch {
 	case !ok:
 	case t.livePane():
+		if a.unpark(t) {
+			a.say("back in the grid")
+		}
 		a.view = gridView
 		a.mode = insertMode
 	case t.pane != nil:
@@ -672,8 +675,12 @@ type prompt struct {
 	target tile   // promptReply: the session to write to
 	onYes  func() // promptConfirm: what "y" does
 	onO    func() // promptConfirm: what "o" does, when the question offers an alternative
-	taskID string // promptTask: the task being edited, "" for a new one
-	group  string // promptTask: the group of a new task typed without #group
+	// A strict question takes only its letters: ⏎ is not yes, n and a run onNo and onAll, and any other
+	// key runs onOther and then does what it does outside the question.
+	strict               bool
+	onNo, onAll, onOther func()
+	taskID               string // promptTask: the task being edited, "" for a new one
+	group                string // promptTask: the group of a new task typed without #group
 
 	// promptNew completes the directory as it is typed, the way a shell does: matches lists the
 	// directories the text completes to, and while tab cycles through them (cycling), at is the one in
@@ -848,10 +855,21 @@ func (a *App) answer(k key) {
 	pr := a.prompt
 	a.closePrompt()
 	switch {
-	case k.isRune("y") || k.isRune("Y") || k.code == keyEnter:
+	case k.isRune("y") || k.isRune("Y") || (k.code == keyEnter && !pr.strict):
 		pr.onYes()
 	case k.isRune("o") && pr.onO != nil:
 		pr.onO()
+	case k.isRune("n") && pr.onNo != nil:
+		pr.onNo()
+	case k.isRune("a") && pr.onAll != nil:
+		pr.onAll()
+	case pr.strict:
+		if pr.onOther != nil {
+			pr.onOther()
+		}
+		if k.code != keyEsc {
+			a.navKey(k)
+		}
 	}
 }
 

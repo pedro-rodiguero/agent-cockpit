@@ -12,9 +12,10 @@ import (
 
 // tile is one card: a collected session, a pane, or both when the pane runs the session's process.
 type tile struct {
-	key  string // stable identity across rebuilds: the session ID, or paneKey(pane ID)
-	sess *model.Session
-	pane *mux.PaneInfo
+	key    string // stable identity across rebuilds: the session ID, or paneKey(pane ID)
+	sess   *model.Session
+	pane   *mux.PaneInfo
+	parked bool // a pane moved to the rail (see park.go)
 }
 
 func paneKey(id string) string { return "pane:" + id }
@@ -97,6 +98,7 @@ const (
 	inTodo
 	inInbox
 	inEnded
+	inParked
 	inQuiet
 )
 
@@ -108,6 +110,8 @@ func (t tile) place(now time.Time) place {
 		return inInbox
 	case t.pane != nil && t.pane.Exited:
 		return inEnded
+	case t.parked:
+		return inParked
 	case t.pane == nil && t.state() == model.Idle && now.Sub(since(t)) > quietAfter:
 		return inQuiet
 	}
@@ -120,7 +124,8 @@ func (t tile) place(now time.Time) place {
 // The list keeps the collector's order, most urgent first. The grid view orders tiles by place: cards
 // first (panes, then sessions by start time, so cards keep their places), then the rail's sections,
 // each of whose quiet sessions comes most recently active first.
-func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time) []tile {
+// parked holds the paneIdentity of the panes moved to the rail.
+func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, now time.Time, parked map[string]bool) []tile {
 	byPID := map[int]int{}
 	for i, s := range sessions {
 		if s.PID != 0 {
@@ -130,7 +135,7 @@ func buildTiles(sessions []model.Session, panes []mux.PaneInfo, view viewKind, n
 	merged := map[int]bool{}
 	tiles := make([]tile, 0, len(sessions)+len(panes))
 	for i := range panes {
-		t := tile{key: paneKey(panes[i].ID), pane: &panes[i]}
+		t := tile{key: paneKey(panes[i].ID), pane: &panes[i], parked: parked[paneIdentity(panes[i])]}
 		if j, ok := byPID[panes[i].PID]; ok {
 			t.sess = &sessions[j]
 			merged[j] = true

@@ -29,7 +29,11 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 
 - **Keeps the grid for what is happening.** Sessions idle for over an hour, inbox items and panes whose
   program exited move to a rail on the right, two rows each, so the cards go to the sessions that are
-  working or waiting for you. The grid picks its columns and rows from the window size and pages when
+  working or waiting for you. A shell pane that only holds an SSH connection is offered the rail too:
+  cockpit asks once a tunnel (`ssh -N`) has been quiet for a minute, or any other `ssh` or `mosh` for ten
+  (`y` moves it, `n` keeps it in the grid, `a` always moves tunnels, or sessions to that host, without
+  asking). `⏎` on a parked pane brings it back; it also comes back when the connection ends. The answers
+  live in `parking.json` next to the to-do list; delete it to be asked again. The grid picks its columns and rows from the window size and pages when
   the cards don't fit. `v` switches to a list with a reading pane for the selected session.
 - **Runs agents in panes.** `n` starts Claude Code, Codex, agy or a shell inside a card: a real
   interactive terminal. The panes belong to a small background server (`cockpit serve`), so they keep

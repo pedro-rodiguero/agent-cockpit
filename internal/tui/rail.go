@@ -25,7 +25,7 @@ const (
 	railEntryRows = 2
 )
 
-var railSections = map[place]string{inTodo: "TO DO", inInbox: "INBOX", inEnded: "ENDED"}
+var railSections = map[place]string{inTodo: "TO DO", inInbox: "INBOX", inEnded: "ENDED", inParked: "PARKED"}
 
 // railSection is the section a tile is listed under: its place, and for tasks the group they belong to.
 func railSection(t tile, now time.Time) string {
@@ -108,6 +108,10 @@ func railEntry(t tile, w int, selected bool, now time.Time) []string {
 		glyph, glyphFg = "◧", cFaint
 		age = fmt.Sprintf("code %d", t.pane.ExitCode)
 		detail = t.pane.Agent + " · " + tilde(t.pane.Cwd)
+	case t.parked:
+		glyph, glyphFg = "⇄", cIdle
+		age = ago(quietSince(*t.pane), now)
+		detail = firstOf(t.pane.Foreground, t.pane.Agent+" · "+tilde(t.pane.Cwd))
 	case t.isTask():
 		var dueFg rgb
 		age, dueFg = due(t.sess.Due, now)

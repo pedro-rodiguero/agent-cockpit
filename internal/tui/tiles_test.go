@@ -35,7 +35,7 @@ func TestBuildTilesMergesPaneAndSessionByPID(t *testing.T) {
 		{ID: "b", PID: 20, State: model.Idle},
 	}
 	panes := []mux.PaneInfo{{ID: "p1", PID: 20}, {ID: "p2", PID: 99}}
-	tiles := buildTiles(sessions, panes, listView, time.Now())
+	tiles := buildTiles(sessions, panes, listView, time.Now(), nil)
 	if got := keys(tiles); !equal(got, []string{"pane:p1", "pane:p2", "a"}) {
 		t.Fatalf("tiles = %v", got)
 	}
@@ -57,7 +57,7 @@ func TestBuildTilesGridOrder(t *testing.T) {
 		{ID: "stale2", State: model.Idle, Started: t0.Add(-8 * time.Hour), Since: t0.Add(-2 * time.Hour)},
 	}
 	panes := []mux.PaneInfo{{ID: "gone", Exited: true}, {ID: "live"}}
-	tiles := buildTiles(sessions, panes, gridView, t0)
+	tiles := buildTiles(sessions, panes, gridView, t0, nil)
 	want := []string{"pane:live", "old", "new", "inbox", "pane:gone", "stale2", "stale"}
 	if got := keys(tiles); !equal(got, want) {
 		t.Errorf("grid order = %v, want %v", got, want)
@@ -65,7 +65,7 @@ func TestBuildTilesGridOrder(t *testing.T) {
 	if n := railCount(tiles, t0); n != 4 {
 		t.Errorf("railCount = %d, want 4", n)
 	}
-	if got := keys(buildTiles(sessions[:3], nil, listView, t0)); !equal(got, []string{"inbox", "new", "old"}) {
+	if got := keys(buildTiles(sessions[:3], nil, listView, t0, nil)); !equal(got, []string{"inbox", "new", "old"}) {
 		t.Errorf("list order = %v, want the collector's", got)
 	}
 }
@@ -76,7 +76,7 @@ func TestNeedingAttention(t *testing.T) {
 		{ID: "wait", State: model.Waiting},
 		{ID: "typing", State: model.Busy},
 	}
-	tiles := buildTiles(sessions, nil, listView, time.Now())
+	tiles := buildTiles(sessions, nil, listView, time.Now(), nil)
 	if got := keys(needingAttention(tiles, "")); !equal(got, []string{"wait"}) {
 		t.Errorf("got %v", got)
 	}

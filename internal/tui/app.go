@@ -146,6 +146,8 @@ type App struct {
 	tasks         *todo.Store              // cockpit's own to-do list
 	lastDone      string                   // the task u reopens
 	lastDirFile   string                   // holds the directory the last new pane started in
+	park          *parking                 // SSH panes moved to the rail, and the answers that move them
+	parkSnooze    map[string]time.Time     // paneIdentity → when to ask about parking it again
 	collectNow    chan struct{}            // a send starts a collection pass without waiting for the interval
 	paneSessions  map[string]model.Session // pane ID → the session last seen running in it, to reopen it
 	pendingSelect string                   // a session to select once it shows up (cockpit select)
@@ -175,6 +177,8 @@ func newApp(col *source.Collector, opts Options) *App {
 		resized:     map[string][2]int{},
 		tasks:       &todo.Store{Path: todo.DefaultPath(), Settings: func() todo.Settings { return opts.Settings.Current().Todo }},
 		lastDirFile: filepath.Join(filepath.Dir(todo.DefaultPath()), "last-pane-dir"),
+		park:        loadParking(filepath.Join(filepath.Dir(todo.DefaultPath()), "parking.json")),
+		parkSnooze:  map[string]time.Time{},
 		collectNow:  make(chan struct{}, 1),
 		events:      make(chan event, eventBuffer),
 		done:        make(chan struct{}),
@@ -419,6 +423,7 @@ func (a *App) handle(ev event) {
 		a.selectPending()
 		a.updateLabels()
 		a.runPendingMoves()
+		a.tendParking(time.Now())
 	case evPanes:
 		a.muxPending.Store(false)
 		a.rebuild()
@@ -505,13 +510,20 @@ func (a *App) send(m mux.Msg) bool {
 	return true
 }
 
+func (a *App) parkedSet() map[string]bool {
+	if a.park == nil {
+		return nil
+	}
+	return a.park.Parked
+}
+
 // rebuild merges the latest sessions and panes into tiles and keeps the selection and mode valid.
 func (a *App) rebuild() {
 	if a.mc != nil {
 		a.panes = a.mc.Panes()
 	}
 	now := time.Now()
-	tiles := buildTiles(a.snap.Sessions, a.panes, a.view, now)
+	tiles := buildTiles(a.snap.Sessions, a.panes, a.view, now, a.parkedSet())
 	if a.onlyAttn {
 		keep := ""
 		if a.mode == insertMode {
@@ -612,7 +624,7 @@ func (a *App) updateLabels() {
 		return
 	}
 	// Every session counts, not just the ones the attention filter shows.
-	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view, time.Now())))
+	changes, next := labelDiff(a.shownLabels, wantedLabels(buildTiles(a.snap.Sessions, a.panes, a.view, time.Now(), a.parkedSet())))
 	a.shownLabels = next
 	a.labels.set(changes)
 }

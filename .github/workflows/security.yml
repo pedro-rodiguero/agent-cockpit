@@ -18,7 +18,7 @@ env:
   SEMGREP_IMAGE: semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1
   GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
   ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
-  GOVULNCHECK: golang.org/x/vuln/cmd/govulncheck@v1.1.4
+  GOVULNCHECK: golang.org/x/vuln/cmd/govulncheck@v1.10.0
 
 jobs:
   govulncheck:

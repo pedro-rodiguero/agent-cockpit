@@ -33,12 +33,15 @@ type Line struct {
 // Info is what a log says about the session besides the conversation. Fields are zero when the log does
 // not record them.
 type Info struct {
-	Model         string // the model answering, without a vendor prefix: "opus-5-5", "gpt-6.1"
-	Branch        string // git branch of the working directory
-	Effort        string // reasoning effort of the last turn
-	Mode          string // permission mode when it is not the default: "plan", "bypass", "auto-edit"
-	ContextTokens int    // tokens the model was given on its last request
-	ContextWindow int    // size of the model's context window, when the log states it
+	Model  string // the model answering, without a vendor prefix: "opus-5-5", "gpt-6.1"
+	Branch string // git branch of the working directory
+	Effort string // reasoning effort of the last turn
+	Mode   string // permission mode when it is not the default: "plan", "bypass", "auto-edit"
+	// Plan names the session's plan file, <config>/plans/<Plan>.md, once the session has been in plan
+	// mode (Claude Code).
+	Plan          string
+	ContextTokens int // tokens the model was given on its last request
+	ContextWindow int // size of the model's context window, when the log states it
 	// Activity is the most recent tool call that has not returned yet ("Bash npm test"), and Running
 	// how many such calls there are. Both are zero between turns.
 	Activity string
@@ -203,6 +206,7 @@ type claudeEntry struct {
 	GitBranch      string `json:"gitBranch"`
 	Effort         string `json:"effort"`
 	PermissionMode string `json:"permissionMode"`
+	Slug           string `json:"slug"`
 	Message        struct {
 		Role    string          `json:"role"`
 		Model   string          `json:"model"`
@@ -294,6 +298,9 @@ func parseClaude(b []byte) Conversation {
 		}
 		if e.GitBranch != "" && e.GitBranch != "HEAD" {
 			info.Branch = e.GitBranch
+		}
+		if e.Slug != "" {
+			info.Plan = e.Slug
 		}
 		if e.Type == "assistant" {
 			if m := e.Message.Model; m != "" && m != "<synthetic>" {

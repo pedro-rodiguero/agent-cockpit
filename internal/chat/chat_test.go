@@ -81,13 +81,13 @@ func TestParseClaudeInfo(t *testing.T) {
 	}
 	log := []string{
 		`{"type":"permission-mode","permissionMode":"plan"}`,
-		`{"type":"user","message":{"role":"user","content":"run the tests"}}`,
+		`{"type":"user","slug":"steady-crafting-grove","message":{"role":"user","content":"run the tests"}}`,
 		assistant(`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"npm test"}},{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"/srv/a.ts"}}`),
 		`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}`,
 		`{"type":"assistant","isSidechain":true,"message":{"role":"assistant","model":"claude-haiku-5-5","usage":{"input_tokens":1},"content":[]}}`,
 	}
 	info := parseClaude([]byte(strings.Join(log, "\n"))).Info
-	want := Info{Model: "opus-5-5", Branch: "feat/limits", Effort: "high", Mode: "plan", ContextTokens: 3210, Activity: "Bash npm test", Running: 1}
+	want := Info{Model: "opus-5-5", Branch: "feat/limits", Effort: "high", Mode: "plan", Plan: "steady-crafting-grove", ContextTokens: 3210, Activity: "Bash npm test", Running: 1}
 	if info != want {
 		t.Fatalf("mid-turn:\n got %+v\nwant %+v", info, want)
 	}

@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,12 +14,7 @@ import (
 
 func TestExternal(t *testing.T) {
 	bin := t.TempDir()
-	script := func(name, body string) {
-		write(t, filepath.Join(bin, name), "#!/bin/sh\n"+body+"\n")
-		if err := os.Chmod(filepath.Join(bin, name), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
+	script := func(name, body string) { executable(t, filepath.Join(bin, name), body) }
 	script("cockpit-source-reviews", `echo '[{"id":"pr-7","name":"web","detail":"review requested","quiet":true},{"name":"no id"}]'`)
 	script("cockpit-source-broken", `echo "token expired" >&2; exit 1`)
 	write(t, filepath.Join(bin, "cockpit-source-not-executable"), "")
@@ -54,10 +50,7 @@ func TestExternal(t *testing.T) {
 func TestExternalKeepsLastResultWhileFailing(t *testing.T) {
 	bin := t.TempDir()
 	path := filepath.Join(bin, "cockpit-source-flaky")
-	write(t, path, "#!/bin/sh\ntest -f \"$0.down\" && exit 1\necho '[{\"id\":\"a\"}]'\n")
-	if err := os.Chmod(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	executable(t, path, "test -f \"$0.down\" && exit 1\necho '[{\"id\":\"a\"}]'")
 	e := &External{Path: path, Every: time.Second, Keep: time.Minute}
 	t0 := time.Now()
 	if got, _ := e.Collect(testCtx(t), &Env{Now: t0}); len(got) != 1 {
@@ -72,11 +65,36 @@ func TestExternalKeepsLastResultWhileFailing(t *testing.T) {
 	}
 }
 
-// testCtx ends with the test or after a minute, so a source that hangs fails the test instead of
-// stalling it. Not less: macOS scans an executable the first time it runs, and on a loaded machine the
-// first run of a script written a moment ago has taken over 5 seconds.
+// testCtx ends with the test or after 10 seconds, so a source that hangs fails the test instead of
+// stalling the run.
 func testCtx(t *testing.T) context.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+// executable writes a script and launches it once, so the tests time the source rather than the first
+// launch of a new file. macOS vets that first launch, which on a loaded machine took seconds and now and
+// then never finished: the process stayed at _dyld_start, for hours once, while the same file started
+// at once later. A launch that does not finish is killed and tried again with a new process.
+func executable(t *testing.T, path, body string) {
+	t.Helper()
+	write(t, path, "#!/bin/sh\n"+body+"\n")
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 1; ; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cmd := exec.CommandContext(ctx, path)
+		cmd.WaitDelay = time.Second
+		_ = cmd.Run()
+		late := ctx.Err() != nil
+		cancel()
+		if !late {
+			return
+		}
+		if attempt == 4 {
+			t.Fatalf("%s never finished starting", filepath.Base(path))
+		}
+	}
 }

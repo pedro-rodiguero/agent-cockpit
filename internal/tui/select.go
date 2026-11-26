@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -115,6 +116,7 @@ func (a *App) onMouse(m mouseEvent) {
 		a.endDrag(m.x, m.y)
 	case m.btn == mouseLeft && !m.release:
 		region, _ := a.regionAt(m.x, m.y)
+		a.countClick(m.x, m.y, time.Now())
 		a.selecting = &selection{region: region, ax: m.x, ay: m.y, bx: m.x, by: m.y, dragging: true}
 	case m.btn == mouseLeft+mouseMotion:
 		if s := a.selecting; s != nil && s.dragging {
@@ -127,14 +129,96 @@ func (a *App) onMouse(m mouseEvent) {
 		}
 		s.dragging = false
 		if s.empty() {
-			a.selecting = nil
-			if _, i := a.regionAt(m.x, m.y); i >= 0 && a.mode == navMode {
-				a.selectIndex(i)
+			switch a.click.n {
+			case 2:
+				a.selectWord(s.region, m.x, m.y)
+			case 3:
+				a.selectLine(s.region, m.y)
+			default:
+				a.selecting = nil
+				a.clickCard(m.x, m.y)
 			}
 			return
 		}
 		a.copySelection()
 	}
+}
+
+// multiClick is how soon a click must follow the previous one, on the same cell, to count with it.
+const multiClick = 400 * time.Millisecond
+
+// clicks counts consecutive clicks on one cell: two select a word, three a line.
+type clicks struct {
+	x, y, n int
+	at      time.Time
+}
+
+func (a *App) countClick(x, y int, now time.Time) {
+	c := &a.click
+	if c.n > 0 && c.n < 3 && x == c.x && y == c.y && now.Sub(c.at) < multiClick {
+		c.n++
+	} else {
+		c.n = 1
+	}
+	c.x, c.y, c.at = x, y, now
+}
+
+// clickCard selects the card under (x, y). A running pane takes the keyboard, as clicking into a
+// terminal would; any other card is only selected, since what ⏎ does there (start, resume, reopen)
+// should not happen on a stray click.
+func (a *App) clickCard(x, y int) {
+	_, i := a.regionAt(x, y)
+	if i < 0 || a.mode == promptMode {
+		return
+	}
+	a.flushTyped()
+	a.selectIndex(i)
+	if t := a.tiles[i]; t.livePane() && a.mc != nil && a.view == gridView && !a.lay.inRail(i) {
+		a.wake(t.pane.ID)
+		a.mode = insertMode
+		return
+	}
+	a.mode = navMode
+}
+
+// selectWord selects and copies the run of non-blank cells under (x, y) in region, without the
+// brackets, quotes and punctuation around it: a double click on a URL copies the URL.
+func (a *App) selectWord(region rect, x, y int) {
+	lines, _ := a.compose()
+	if y < 0 || y >= len(lines) {
+		a.selecting = nil
+		return
+	}
+	cell := func(cx int) string { return ansi.Strip(ansi.Cut(lines[y], cx, cx+1)) }
+	blank := func(cx int) bool { c := cell(cx); return c == "" || c == " " }
+	if blank(x) {
+		a.selecting = nil
+		return
+	}
+	x0, x1 := x, x
+	for x0 > region.x && !blank(x0-1) {
+		x0--
+	}
+	for x1 < region.x+region.w-1 && !blank(x1+1) {
+		x1++
+	}
+	for x0 < x1 && strings.Contains(wordEdge, cell(x0)) {
+		x0++
+	}
+	for x1 > x0 && strings.Contains(wordEdge+".,;:!?", cell(x1)) {
+		x1--
+	}
+	a.selecting = &selection{region: region, ax: x0, ay: y, bx: x1, by: y}
+	a.copySelection()
+}
+
+// wordEdge are characters that wrap a word or a URL in text rather than belong to it.
+const wordEdge = "()[]{}<>\"'`"
+
+// selectLine selects and copies row y of region.
+func (a *App) selectLine(region rect, y int) {
+	a.selecting = &selection{region: region, ax: region.x, ay: y, bx: region.x + region.w - 1, by: y}
+	a.copySelection()
 }
 
 // wheelStep is how many lines one notch of the wheel scrolls.
@@ -250,13 +334,16 @@ func (a *App) copySelection() {
 	}
 	n := fmt.Sprintf("copied %d characters", len([]rune(text)))
 	a.goSafe(func() {
-		if err := copyToClipboard(text); err != nil {
+		if err := clipboard(text); err != nil {
 			a.post(event{kind: evFlash, msg: "copy failed: " + err.Error()})
 			return
 		}
 		a.post(event{kind: evFlash, msg: n})
 	})
 }
+
+// clipboard copies text; tests swap it so they never touch the person's clipboard.
+var clipboard = copyToClipboard
 
 // copyToClipboard uses pbcopy on a Mac and otherwise asks the terminal to copy, with OSC 52.
 func copyToClipboard(text string) error {

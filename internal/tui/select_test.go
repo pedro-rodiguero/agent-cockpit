@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -148,4 +149,61 @@ func TestWheelOnAlternateScreenSendsArrowsToAnOldServer(t *testing.T) {
 func composed(a *App) []string {
 	lines, _ := a.compose()
 	return lines
+}
+
+// A click on a running pane types into it; a click on another card while typing moves there.
+func TestClickOnAPaneTypesIntoIt(t *testing.T) {
+	a, _ := appWithPane()
+	pane, sess := a.lay.cell(0), a.lay.cell(1)
+	press(a, mouse(0, pane.x+4, pane.y+3, false), mouse(0, pane.x+4, pane.y+3, true))
+	if a.mode != insertMode || a.sel != paneKey("p1") {
+		t.Fatalf("mode %v selected %s", a.mode, a.sel)
+	}
+	press(a, mouse(0, sess.x+4, sess.y+3, false), mouse(0, sess.x+4, sess.y+3, true))
+	if a.mode != navMode || a.cur() != 1 {
+		t.Fatalf("a session card took the keyboard: mode %v selected %d", a.mode, a.cur())
+	}
+}
+
+// Two clicks copy the word or URL under the pointer, without what wraps it; three copy the line.
+func TestDoubleAndTripleClickCopy(t *testing.T) {
+	var copied []string
+	clipboard = func(s string) error { copied = append(copied, s); return nil }
+	t.Cleanup(func() { clipboard = copyToClipboard })
+	a, fs := appWithPane()
+	fs.screen = &mux.Screen{ID: "p1", Lines: []string{"see (https://example.com/a?b=1). ok"}}
+	a.relayout()
+	c := a.lay.cell(0)
+	lines, _ := a.compose()
+	y, x := -1, -1
+	for row, l := range lines {
+		if i := strings.Index(ansi.Strip(l), "example"); i >= 0 && row >= c.y && row < c.y+c.h {
+			y, x = row, ansi.StringWidth(ansi.Strip(l)[:i])
+			break
+		}
+	}
+	if y < 0 {
+		t.Fatal("the pane line is not on screen")
+	}
+	click := func() { press(a, mouse(0, x, y, false), mouse(0, x, y, true)) }
+	click()
+	click()
+	wait := func(n int) string {
+		for end := time.Now().Add(2 * time.Second); len(copied) < n && time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+			for len(a.events) > 0 {
+				a.handle(<-a.events)
+			}
+		}
+		if len(copied) < n {
+			t.Fatalf("nothing copied (have %q)", copied)
+		}
+		return copied[n-1]
+	}
+	if got := wait(1); got != "https://example.com/a?b=1" {
+		t.Fatalf("double click copied %q", got)
+	}
+	click()
+	if got := wait(2); got != "see (https://example.com/a?b=1). ok" {
+		t.Fatalf("triple click copied %q", got)
+	}
 }

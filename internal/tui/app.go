@@ -162,6 +162,7 @@ type App struct {
 	saidOld       bool                     // the footer said the pane server is old
 	flash         flash
 	selecting     *selection // text selected with the mouse, shown until the next key or click
+	click         clicks     // the clicks so far on one cell, for double and triple clicks
 
 	scr        *screen
 	w, h       int

@@ -55,6 +55,9 @@ cat >"$APP/Contents/Info.plist" <<EOF
 EOF
 cp menubar/.build/release/AgentCockpit "$APP/Contents/MacOS/AgentCockpit"
 cp menubar/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# SwiftTerm's Metal shaders: without them the dashboard draws on the CPU, most of a core while agents print.
+rm -rf "$APP/Contents/Resources/SwiftTerm_SwiftTerm.bundle"
+cp -R menubar/.build/release/SwiftTerm_SwiftTerm.bundle "$APP/Contents/Resources/"
 # Ad-hoc signature: enough for notifications and for macOS to remember permissions between builds.
 codesign --force --sign - "$APP" >/dev/null
 

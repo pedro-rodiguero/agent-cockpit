@@ -114,6 +114,15 @@ final class DashboardWindow: NSObject, NSWindowDelegate, LocalProcessTerminalVie
             t.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             t.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
+        // The GPU draws the dashboard. SwiftTerm's CoreGraphics renderer redraws every row between the
+        // first and last that changed, so a frame touching the clock and a card near the bottom
+        // repainted the whole window on the CPU: most of a core while agents print. Without Metal the
+        // view keeps that renderer.
+        do {
+            try t.setUseMetal(true)
+        } catch {
+            NSLog("Agent Cockpit: Metal rendering unavailable, drawing on the CPU: \(error)")
+        }
     }
 
     private func makeTerminal(frame: NSRect) -> LocalProcessTerminalView {

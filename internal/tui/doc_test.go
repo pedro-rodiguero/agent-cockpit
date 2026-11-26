@@ -95,6 +95,13 @@ func TestPlanViewerWithoutAPlan(t *testing.T) {
 	if a.doc != nil || !strings.Contains(a.flash.text, "plan not found") {
 		t.Fatalf("missing file: doc %v flash %q", a.doc, a.flash.text)
 	}
+	for _, evil := range []string{"../../.ssh/notes", "a/b", "..", "x\x1b[2J"} {
+		a.convs["s1"] = chat.Conversation{Info: chat.Info{Plan: evil}}
+		press(a, "m")
+		if a.doc != nil || !strings.Contains(a.flash.text, "not a plan name") {
+			t.Fatalf("slug %q: doc %v flash %q", evil, a.doc, a.flash.text)
+		}
+	}
 	a.convs["s1"] = chat.Conversation{}
 	press(a, "m")
 	if a.doc != nil || !strings.Contains(a.flash.text, "not been in plan mode") {
@@ -107,5 +114,52 @@ func TestFeedbackMessageNamesThePlan(t *testing.T) {
 	got := feedbackMessage(filepath.Join(home, ".claude", "plans", "x.md"), "split step 2")
 	if got != "Feedback on your plan (~/.claude/plans/x.md):\n\nsplit step 2" {
 		t.Fatalf("%q", got)
+	}
+}
+
+// plansDirectory moves plans inside the project; the local settings win over the project's, which win
+// over the profile's. A folder outside the project is ignored, as Claude Code ignores it.
+func TestPlanFollowsPlansDirectory(t *testing.T) {
+	a, defaultPath := planApp(t)
+	proj := t.TempDir()
+	a.snap.Sessions[0].Cwd = proj
+	a.rebuild()
+	cfg := filepath.Dir(filepath.Dir(defaultPath))
+	put := func(path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opened := func() string {
+		t.Helper()
+		a.doc = nil
+		press(a, "m")
+		if a.doc == nil {
+			t.Fatalf("not opened: %q", a.flash.text)
+		}
+		return a.doc.path
+	}
+	put(defaultPath, "# default")
+
+	put(filepath.Join(cfg, "settings.json"), `{"plansDirectory": "user-plans"}`)
+	put(filepath.Join(proj, "user-plans", "steady-crafting-grove.md"), "# user")
+	if got := opened(); got != filepath.Join(proj, "user-plans", "steady-crafting-grove.md") {
+		t.Fatalf("user setting: %s", got)
+	}
+
+	put(filepath.Join(proj, ".claude", "settings.json"), `{"plansDirectory": "docs/plans"}`)
+	put(filepath.Join(proj, "docs", "plans", "steady-crafting-grove.md"), "# project")
+	if got := opened(); got != filepath.Join(proj, "docs", "plans", "steady-crafting-grove.md") {
+		t.Fatalf("project setting: %s", got)
+	}
+
+	put(filepath.Join(proj, ".claude", "settings.local.json"), `{"plansDirectory": "../outside"}`)
+	put(filepath.Join(filepath.Dir(proj), "outside", "steady-crafting-grove.md"), "# escaped")
+	if got := opened(); got != filepath.Join(proj, "docs", "plans", "steady-crafting-grove.md") {
+		t.Fatalf("a folder outside the project was followed: %s", got)
 	}
 }

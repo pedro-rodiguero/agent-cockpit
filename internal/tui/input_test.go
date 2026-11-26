@@ -250,6 +250,14 @@ func TestNewPaneStartsAboveTheLastPaneDir(t *testing.T) {
 	if got := string(b.prompt.text); got != "~/Desktop/" {
 		t.Fatalf("with the folder gone: %q", got)
 	}
+	b.onKeys([]key{{code: keyEsc}})
+
+	// A pane in ~/Desktop itself: going up would land in home, so the prompt stays in the Desktop.
+	b.startPane(b.launchers[0], "~/Desktop/")
+	press(b, "n")
+	if got := string(b.prompt.text); got != "~/Desktop/" {
+		t.Fatalf("after a pane in the Desktop: %q", got)
+	}
 }
 
 func TestLeavingAZoomedPaneLeavesTheZoom(t *testing.T) {

@@ -514,12 +514,18 @@ func (a *App) promptNewPane() {
 }
 
 // newPaneDir is where the new pane prompt starts, as a terminal would: the folder above the one the last
-// pane started in, so it and its siblings are listed. Before any pane, or when that folder is gone, it is
-// the Desktop, or home when there is none. It ends in "/" so the folders inside are listed right away.
+// pane started in, so it and its siblings are listed. It never goes up to home or above it: after a pane
+// in ~/Desktop it stays there rather than dropping to ~. Before any pane, or when that folder is gone, it
+// is the Desktop, or home when there is none. It ends in "/" so the folders inside are listed right away.
 func newPaneDir(lastDirFile string) string {
+	home, _ := os.UserHomeDir()
 	if b, err := os.ReadFile(lastDirFile); err == nil {
 		if last := strings.TrimSpace(string(b)); filepath.IsAbs(last) {
-			for dir := filepath.Dir(last); ; dir = filepath.Dir(dir) {
+			start := filepath.Dir(last)
+			if home != "" && insideDir(start, home) {
+				start = last
+			}
+			for dir := start; ; dir = filepath.Dir(dir) {
 				if isDir(dir) {
 					return strings.TrimSuffix(tilde(dir), "/") + "/"
 				}
@@ -529,7 +535,6 @@ func newPaneDir(lastDirFile string) string {
 			}
 		}
 	}
-	home, _ := os.UserHomeDir()
 	if isDir(filepath.Join(home, "Desktop")) {
 		return "~/Desktop/"
 	}

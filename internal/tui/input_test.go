@@ -250,6 +250,18 @@ func TestNewPaneStartsAboveTheLastPaneDir(t *testing.T) {
 	}
 }
 
+func TestLeavingAZoomedPaneLeavesTheZoom(t *testing.T) {
+	a, _ := appWithPane()
+	press(a, "z", "a") // zoom the pane; typing goes to it
+	if a.mode != insertMode || !a.zoom {
+		t.Fatalf("zoomed typing: mode %v zoom %v", a.mode, a.zoom)
+	}
+	press(a, "\x11")
+	if a.mode != navMode || a.zoom {
+		t.Fatalf("ctrl-q: mode %v zoom %v", a.mode, a.zoom)
+	}
+}
+
 func TestPasteInNavModeDoesNothing(t *testing.T) {
 	a, fs := appWithPane()
 	press(a, "\x1b[200~xpq\x1b[201~")

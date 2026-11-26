@@ -140,7 +140,7 @@ func (a *App) insertKey(k key) {
 	switch {
 	case k.isCtrl(leaveLetter):
 		a.flushTyped()
-		a.mode = navMode
+		a.mode, a.zoom = navMode, false
 	case k.isCtrl(zoomLetter):
 		a.zoom = !a.zoom
 	case k.code == keyEsc && a.zoom:

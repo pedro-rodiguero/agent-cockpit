@@ -105,7 +105,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `←↑↓→` `hjkl` | move; right from the last column enters the rail · `tab` next · `1`–`9` card on this page · `[` `]` page · `g` `G` first and last |
 | `⏎` `i` | type into a pane · continue a tab's session here (asks first) · reopen an ended pane · open an inbox item |
 | `o` | go to the session's terminal tab · `p` moves a Claude Code or Codex session from its tab into a pane (asks first) |
-| `ctrl-q` | leave a pane (every other key goes to the agent) · `ctrl-z` zooms in or out of it |
+| `ctrl-q` | leave a pane, and its zoom (every other key goes to the agent) · `ctrl-z` zooms in or out of it |
 | `n` | new pane: `←→` picks the agent (one entry per Claude profile); the folder starts one level above the last pane's folder (at `~/Desktop/` the first time) and completes as you type, like a shell: matching folders are listed, `tab` fills in what they share and then cycles through them (`shift-tab` back, `esc` returns to what you typed) |
 | `r` | send a message to a Claude Code session |
 | `m` | read the selected Claude Code session's plan (`<config>/plans/<slug>.md`), rendered and updated live as the agent rewrites it: `j k` scroll, `space b` page, `[ ]` previous/next section, `g G` top/end, `r` sends feedback on the plan to the session, `esc` closes |

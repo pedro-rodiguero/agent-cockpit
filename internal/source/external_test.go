@@ -72,10 +72,11 @@ func TestExternalKeepsLastResultWhileFailing(t *testing.T) {
 	}
 }
 
-// testCtx ends with the test or after 10 seconds, so a source that hangs fails the test instead of
-// stalling the run.
+// testCtx ends with the test or after a minute, so a source that hangs fails the test instead of
+// stalling it. Not less: macOS scans an executable the first time it runs, and on a loaded machine the
+// first run of a script written a moment ago has taken over 5 seconds.
 func testCtx(t *testing.T) context.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	return ctx
 }

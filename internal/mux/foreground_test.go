@@ -73,3 +73,35 @@ func TestParsePS(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+// A program redrawing after a resize is not activity: otherwise every change to the grid would wake
+// every pane on it.
+func TestRedrawAfterResizeIsNotActivity(t *testing.T) {
+	s := newServer()
+	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
+		Args: []string{"/bin/sh", "-c", "trap 'echo redrawn' WINCH; while :; do sleep 0.1; done"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close(id)
+	p := s.get(id)
+	time.Sleep(300 * time.Millisecond)
+	p.mu.Lock()
+	before := p.lastIO
+	p.mu.Unlock()
+	p.resize(50, 8)
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		if strings.Contains(strings.Join(p.screen().Lines, "\n"), "redrawn") {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("the program never redrew")
+		}
+	}
+	p.mu.Lock()
+	after := p.lastIO
+	p.mu.Unlock()
+	if !after.Equal(before) {
+		t.Fatalf("the redraw counted as activity: lastIO moved %v", after.Sub(before))
+	}
+}

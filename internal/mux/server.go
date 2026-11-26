@@ -52,12 +52,13 @@ type pane struct {
 	emu *vt.SafeEmulator
 	osc oscFilter // used by pump only
 
-	mu     sync.Mutex // guards info, dirty, paste, mouse and lastIO
+	mu     sync.Mutex // guards info, dirty, paste, mouse, lastIO and redraw
 	info   PaneInfo
 	dirty  bool // the screen changed since the last broadcast
 	paste  pasteMode
 	mouse  mouseMode
 	lastIO time.Time // the latest input or output; info.LastIO follows it within ioGranularity
+	redraw time.Time // output until then is the program redrawing after a resize, not activity
 }
 
 type client struct {
@@ -368,7 +369,9 @@ func (s *Server) pump(p *pane) {
 			_, _ = p.emu.Write(p.osc.feed(buf[:n]))
 			p.mu.Lock()
 			p.dirty = true
-			p.lastIO = time.Now()
+			if now := time.Now(); now.After(p.redraw) {
+				p.lastIO = now
+			}
 			p.paste.observe(buf[:n])
 			p.mouse.observe(buf[:n])
 			p.mu.Unlock()
@@ -407,6 +410,9 @@ func (p *pane) resize(cols, rows int) {
 	exited := p.info.Exited
 	p.info.Cols, p.info.Rows = cols, rows
 	p.dirty = true
+	if !same {
+		p.redraw = time.Now().Add(resizeRedraw)
+	}
 	p.mu.Unlock()
 	if same {
 		return

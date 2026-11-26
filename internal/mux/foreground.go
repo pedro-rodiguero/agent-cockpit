@@ -15,6 +15,9 @@ const (
 	foregroundEvery = 3 * time.Second
 	// ioGranularity is how far a pane's published LastIO may lag behind its real last activity.
 	ioGranularity = 30 * time.Second
+	// resizeRedraw is how long after a resize a pane's output is taken for the program redrawing its
+	// screen. Without it, every change to the grid would wake every pane on it.
+	resizeRedraw = 2 * time.Second
 )
 
 func (s *Server) watchForeground() {

@@ -128,7 +128,8 @@ type App struct {
 	view     viewKind
 	onlyAttn bool
 	zoom     bool
-	help     bool // the key list covers the body
+	help     bool     // the key list covers the body
+	doc      *docView // a Markdown document covers the body, when open
 	mode     mode
 	prompt   *prompt
 

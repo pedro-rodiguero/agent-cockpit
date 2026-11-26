@@ -106,6 +106,8 @@ func (a *App) onMouse(m mouseEvent) {
 	switch {
 	case m.btn >= mouseWheel:
 		a.wheel(m)
+	case a.doc != nil:
+		// The viewer covers the cards: a click must not select one the person cannot see.
 	case m.btn == mouseLeft && !m.release:
 		region, _ := a.regionAt(m.x, m.y)
 		a.selecting = &selection{region: region, ax: m.x, ay: m.y, bx: m.x, by: m.y, dragging: true}
@@ -141,6 +143,14 @@ const mouseMods = 4 | 8 | 16
 // do.
 func (a *App) wheel(m mouseEvent) {
 	up := m.btn&^mouseMods == mouseWheel
+	if a.doc != nil {
+		if up {
+			a.doc.scroll = max(0, a.doc.scroll-wheelStep)
+		} else {
+			a.doc.scroll = min(max(0, len(a.doc.lines)-1), a.doc.scroll+wheelStep)
+		}
+		return
+	}
 	t, ok := a.tileAt(m.x, m.y)
 	if !ok || t.pane == nil || a.mc == nil {
 		return

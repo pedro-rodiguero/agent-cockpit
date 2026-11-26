@@ -73,6 +73,8 @@ func (a *App) compose() ([]string, cursor) {
 	switch {
 	case a.help:
 		body = helpBody(w, h-headerRows-footerRows)
+	case a.doc != nil:
+		body = a.docBody(w, h-headerRows-footerRows)
 	case a.view == gridView:
 		body, cur = a.gridBody()
 	default:
@@ -330,6 +332,8 @@ func (a *App) footer(w, y int) (string, cursor) {
 		}
 	case a.help:
 		foot += key("any key", "closes this")
+	case a.doc != nil:
+		foot += a.docFooterKeys(key)
 	default:
 		foot += a.footerKeys(w, key)
 	}
@@ -348,6 +352,9 @@ func (a *App) footerKeys(w int, key func(k, d string) string) string {
 	if t, ok := a.selected(); ok {
 		for _, k := range tileKeys(t) {
 			own += key(k.key, k.does)
+		}
+		if t.sess != nil && a.convs[t.sess.ID].Info.Plan != "" {
+			own += key("m", "plan")
 		}
 		own += paint(cLine, cBg, "│  ")
 	}
@@ -441,7 +448,7 @@ func (a *App) promptLine(w, y int) (string, cursor) {
 		} else {
 			line += paint(cFaint, cPanel, "   ←→ agent · tab complete · ⏎ start · esc cancel")
 		}
-	case promptReply, promptTask:
+	case promptReply, promptTask, promptFeedback:
 		line = paint(cGold, cPanel, " "+pr.label+" ▸ ") + paint(cInk, cPanel, string(pr.text))
 		cur = cursor{x: width(line), y: y, show: true}
 		hint := "   ⏎ send · esc cancel"

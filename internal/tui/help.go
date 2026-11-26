@@ -18,6 +18,7 @@ var helpKeys = [][]keyHint{
 		{"o", "go to the session's terminal tab"},
 		{"p", "move a session from its terminal tab into a pane"},
 		{"r", "send a message to a Claude Code session"},
+		{"m", "read the session's plan, live as it changes · r sends feedback on it"},
 		{"n", "new pane"},
 		{"x", "close a pane, stopping its agent; delete a task"},
 		{"ctrl-q", "leave a pane; every other key goes to the agent"},

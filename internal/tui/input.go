@@ -53,6 +53,7 @@ const (
 	actCompleteTask
 	actEditTask
 	actUndo
+	actPlan
 )
 
 // binding is a key as navigation mode sees it.
@@ -90,6 +91,7 @@ var navBindings = map[binding]action{
 	{keyRune, " "}: actCompleteTask,
 	{keyRune, "e"}: actEditTask,
 	{keyRune, "u"}: actUndo,
+	{keyRune, "m"}: actPlan,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -182,6 +184,10 @@ func (a *App) navKey(k key) {
 		a.help = false
 		return
 	}
+	if a.doc != nil {
+		a.docKey(k)
+		return
+	}
 	if a.typesIntoZoomedPane(k) {
 		a.mode = insertMode
 		a.insertKey(k)
@@ -255,6 +261,8 @@ func (a *App) navKey(k key) {
 		a.promptEditTask()
 	case actUndo:
 		a.undoComplete()
+	case actPlan:
+		a.openPlan()
 	}
 }
 
@@ -649,10 +657,11 @@ func (a *App) moveIntoPane(id string, pid int) {
 type promptKind int
 
 const (
-	promptNew     promptKind = iota // directory and agent for a new pane
-	promptReply                     // a message for a Claude session
-	promptConfirm                   // a yes/no question
-	promptTask                      // a task of the to-do list, new or edited
+	promptNew      promptKind = iota // directory and agent for a new pane
+	promptReply                      // a message for a Claude session
+	promptConfirm                    // a yes/no question
+	promptTask                       // a task of the to-do list, new or edited
+	promptFeedback                   // feedback on the open document, for its session
 )
 
 type prompt struct {
@@ -845,6 +854,11 @@ func (a *App) submit() {
 		a.closePrompt()
 		if text != "" {
 			a.sendReply(pr.target, text)
+		}
+	case promptFeedback:
+		a.closePrompt()
+		if text != "" && a.doc != nil {
+			a.sendReply(pr.target, feedbackMessage(a.doc.path, text))
 		}
 	case promptTask:
 		a.closePrompt()

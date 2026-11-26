@@ -62,7 +62,11 @@ The protocol has a version, `ProtocolVersion` in `proto.go`, raised whenever a m
 ignores requests it does not know, so a dashboard compares the server's `hello` with its own version:
 when the server is older, the dashboard sends `shutdown` as soon as no pane's program is running and
 connects again, which starts the newer server. Until then its footer says why. Version 3 added
-`history` and version 4 `wheel`; a dashboard sends arrow keys for the wheel to a server older than 4. Servers from before
+`history` and version 4 `wheel`; a dashboard sends arrow keys for the wheel to a server older than 4. Version
+5 added two pane fields: `fg`, the command line of the job in front of a shell pane when it is not the
+shell itself (read from the terminal's foreground process group every 3 seconds), and `lastIO`, when the
+pane last took input or printed anything, kept to within 30 seconds so a busy pane does not resend the
+list on every write. A server older than 5 sends neither, and no pane is offered the rail. Servers from before
 version 1 send no `hello` and do not know `shutdown`; the footer says to restart them by hand.
 
 ## Flow control

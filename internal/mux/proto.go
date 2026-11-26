@@ -14,7 +14,8 @@ import (
 // running one should be replaced for. The server announces it on attach, so a dashboard can tell a
 // server older than itself, which ignores requests it does not know. Servers from before version 1
 // announce nothing. Version 2: titles no longer leak onto the screen (see oscFilter). Version 3: history. Version 4: wheel.
-const ProtocolVersion = 4
+// Version 5: a pane's foreground command and last activity.
+const ProtocolVersion = 5
 
 // Operations. Dashboards send attach, spawn, input, paste, resize, close and shutdown; the server sends
 // hello, panes, screen, spawned and error. Anyone may send select, which the server passes on to every
@@ -58,6 +59,12 @@ type PaneInfo struct {
 	Exited   bool      `json:"exited,omitempty"`
 	ExitCode int       `json:"exitCode,omitempty"`
 	Bell     time.Time `json:"bell,omitempty"` // last BEL
+	// Foreground is the command line of the job in front in a shell pane, when it is not the shell itself
+	// ("ssh -N -L 5432:db:5432 bastion"); empty otherwise.
+	Foreground string `json:"fg,omitempty"`
+	// LastIO is when the pane last took input or printed something, kept to within ioGranularity so a
+	// busy pane does not resend the list on every write.
+	LastIO time.Time `json:"lastIO,omitempty"`
 }
 
 // Screen is a pane's visible screen: one string per row, each exactly Cols cells wide, with SGR escape

@@ -52,11 +52,12 @@ type pane struct {
 	emu *vt.SafeEmulator
 	osc oscFilter // used by pump only
 
-	mu    sync.Mutex // guards info, dirty, paste and mouse
-	info  PaneInfo
-	dirty bool // the screen changed since the last broadcast
-	paste pasteMode
-	mouse mouseMode
+	mu     sync.Mutex // guards info, dirty, paste, mouse and lastIO
+	info   PaneInfo
+	dirty  bool // the screen changed since the last broadcast
+	paste  pasteMode
+	mouse  mouseMode
+	lastIO time.Time // the latest input or output; info.LastIO follows it within ioGranularity
 }
 
 type client struct {
@@ -101,6 +102,7 @@ func Serve() error {
 		os.Exit(0)
 	}
 	go s.broadcast()
+	go s.watchForeground()
 	go s.exitWhenIdle(sock)
 	log.Printf("listening on %s", sock)
 	for {
@@ -165,12 +167,14 @@ func (s *Server) handle(conn net.Conn) {
 			c.send(Msg{Op: OpSpawned, ID: id})
 		case OpInput:
 			if p := s.get(m.ID); p != nil && !p.exited() {
+				p.active()
 				_, _ = p.pty.Write(m.Data)
 			}
 		case OpPaste:
 			if p := s.get(m.ID); p != nil && !p.exited() {
 				p.mu.Lock()
 				data := p.paste.wrap(m.Data)
+				p.lastIO = time.Now()
 				p.mu.Unlock()
 				_, _ = p.pty.Write(data)
 			}
@@ -309,9 +313,10 @@ func (s *Server) spawn(m Msg) (string, error) {
 	s.mu.Lock()
 	s.nextID++
 	id := strconv.Itoa(s.nextID)
-	p := &pane{cmd: cmd, pty: f, emu: emu, info: PaneInfo{
+	now := time.Now()
+	p := &pane{cmd: cmd, pty: f, emu: emu, lastIO: now, info: PaneInfo{
 		ID: id, Agent: m.Agent, Cwd: cwd, PID: cmd.Process.Pid, Cols: cols, Rows: rows,
-		Started: time.Now(), Title: filepath.Base(cwd),
+		Started: now, Title: filepath.Base(cwd), LastIO: now,
 	}}
 	s.panes[id] = p
 	s.order = append(s.order, id)
@@ -363,6 +368,7 @@ func (s *Server) pump(p *pane) {
 			_, _ = p.emu.Write(p.osc.feed(buf[:n]))
 			p.mu.Lock()
 			p.dirty = true
+			p.lastIO = time.Now()
 			p.paste.observe(buf[:n])
 			p.mouse.observe(buf[:n])
 			p.mu.Unlock()
@@ -554,4 +560,10 @@ func (s *Server) running() int {
 		}
 	}
 	return n
+}
+
+func (p *pane) active() {
+	p.mu.Lock()
+	p.lastIO = time.Now()
+	p.mu.Unlock()
 }

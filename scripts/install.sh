@@ -14,16 +14,27 @@ LABEL="io.github.pedro-rodiguero.agent-cockpit"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 
-echo "→ cockpit $VERSION"
+# Everything is built before anything is installed, so a failed build leaves the old install whole.
+# Half an install is worse than none: an app whose Info.plist changed without being signed again has
+# a broken signature, and macOS withdraws the folder access it was given, from it and from the panes
+# its dashboard runs.
 mkdir -p "$PREFIX"
-go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$PREFIX/cockpit" ./cmd/cockpit
+NEW="$PREFIX/.cockpit.new"
+trap 'rm -f "$NEW"' EXIT
+
+echo "→ cockpit $VERSION"
+go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$NEW" ./cmd/cockpit
 
 if [[ "${NO_MENUBAR:-}" == 1 || "$(uname -s)" != Darwin ]]; then
+	mv -f "$NEW" "$PREFIX/cockpit"
 	echo "✓ installed $PREFIX/cockpit"
 	exit 0
 fi
 
 echo "→ Agent Cockpit.app"
+swift build -c release --package-path menubar
+
+mv -f "$NEW" "$PREFIX/cockpit" # a rename: the running dashboard and pane server keep their file
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cat >"$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,7 +53,6 @@ cat >"$APP/Contents/Info.plist" <<EOF
   <key>NSAppleEventsUsageDescription</key><string>Open the cockpit dashboard in Terminal.</string>
 </dict></plist>
 EOF
-swift build -c release --package-path menubar
 cp menubar/.build/release/AgentCockpit "$APP/Contents/MacOS/AgentCockpit"
 cp menubar/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Ad-hoc signature: enough for notifications and for macOS to remember permissions between builds.

@@ -168,7 +168,15 @@ func (a *App) countClick(x, y int, now time.Time) {
 // should not happen on a stray click.
 func (a *App) clickCard(x, y int) {
 	_, i := a.regionAt(x, y)
-	if i < 0 || a.mode == promptMode {
+	if a.mode == promptMode {
+		return
+	}
+	if i < 0 {
+		// Anywhere but a card, the rail above all, leaves the pane being typed into, as ctrl-q does.
+		if a.mode == insertMode {
+			a.flushTyped()
+			a.mode, a.zoom = navMode, false
+		}
 		return
 	}
 	a.flushTyped()

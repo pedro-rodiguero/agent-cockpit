@@ -10,7 +10,7 @@ var helpKeys = [][]keyHint{
 		{"1–9", "card on this page"},
 		{"[ ]", "previous and next page · g G first and last"},
 		{"click", "select a card; a running pane takes the keyboard · drag selects text, copied on release"},
-		{"", "double click copies a word or URL · triple click a line"},
+		{"", "double click copies a word or URL · triple click a line · a click on the rail leaves a pane"},
 		{"HJKL", "move the selected card · also shift and an arrow, or drag its title"},
 		{"> <", "bigger or smaller · = all the same size · or drag a border"},
 		{"wheel", "scroll a pane back through its history, or a full-screen program like Claude Code itself · typing returns to the live screen"},

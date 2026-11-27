@@ -55,7 +55,7 @@ func TestPaneTakesTypingAResizeAndAClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := s.get(id)
-	if _, err := p.term.Write([]byte("echo typed-%OS%\r")); err != nil {
+	if _, err := p.in.Write([]byte("echo typed-%OS%\r")); err != nil {
 		t.Fatal(err)
 	}
 	shown(t, p, "typed-Windows_NT")
@@ -63,7 +63,7 @@ func TestPaneTakesTypingAResizeAndAClose(t *testing.T) {
 	if scr := p.screen(); len(scr.Lines) != 30 {
 		t.Fatalf("%d rows after the resize", len(scr.Lines))
 	}
-	if _, err := p.term.Write([]byte("echo after-resize\r")); err != nil {
+	if _, err := p.in.Write([]byte("echo after-resize\r")); err != nil {
 		t.Fatal(err)
 	}
 	shown(t, p, "after-resize")

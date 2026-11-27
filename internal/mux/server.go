@@ -45,6 +45,7 @@ type Server struct {
 
 type pane struct {
 	term terminal // the program and the pseudo-terminal it runs on
+	in   *feed    // everything written to term goes through it, so no sender waits for the terminal
 	emu  *vt.SafeEmulator
 	osc  oscFilter // used by pump only
 
@@ -165,7 +166,7 @@ func (s *Server) handle(conn net.Conn) {
 		case OpInput:
 			if p := s.get(m.ID); p != nil && !p.exited() {
 				p.active()
-				_, _ = p.term.Write(m.Data)
+				_, _ = p.in.Write(m.Data)
 			}
 		case OpPaste:
 			if p := s.get(m.ID); p != nil && !p.exited() {
@@ -173,7 +174,7 @@ func (s *Server) handle(conn net.Conn) {
 				data := p.paste.wrap(m.Data)
 				p.lastIO = time.Now()
 				p.mu.Unlock()
-				_, _ = p.term.Write(data)
+				_, _ = p.in.Write(data)
 			}
 		case OpWheel:
 			if p := s.get(m.ID); p != nil && !p.exited() {
@@ -182,7 +183,7 @@ func (s *Server) handle(conn net.Conn) {
 				data := p.mouse.wheel(m.Up, m.X, m.Y, alt)
 				p.mu.Unlock()
 				if data != nil {
-					_, _ = p.term.Write(data)
+					_, _ = p.in.Write(data)
 				}
 			}
 		case OpResize:
@@ -309,7 +310,7 @@ func (s *Server) spawn(m Msg) (string, error) {
 	s.nextID++
 	id := strconv.Itoa(s.nextID)
 	now := time.Now()
-	p := &pane{term: f, emu: emu, lastIO: now, info: PaneInfo{
+	p := &pane{term: f, in: newFeed(), emu: emu, lastIO: now, info: PaneInfo{
 		ID: id, Agent: m.Agent, Cwd: cwd, PID: f.PID(), Cols: cols, Rows: rows,
 		Started: now, Title: filepath.Base(cwd), LastIO: now,
 	}}
@@ -336,7 +337,8 @@ func (s *Server) spawn(m Msg) (string, error) {
 	})
 	// The emulator answers terminal queries (cursor position, device attributes, colors); the
 	// answers have to reach the program or some agents wait for them forever.
-	go func() { _, _ = io.Copy(f, emu) }()
+	go p.in.run(f)
+	go func() { _, _ = io.Copy(p.in, emu) }()
 	go s.pump(p)
 	return id, nil
 }
@@ -396,7 +398,7 @@ func (p *pane) resize(cols, rows int) {
 	}
 	p.emu.Resize(cols, rows)
 	if !exited {
-		_ = p.term.Resize(cols, rows)
+		p.in.resize(cols, rows)
 	}
 }
 
@@ -458,6 +460,7 @@ func (s *Server) close(id string) {
 			}
 		}()
 	}
+	p.in.close()
 	_ = p.term.Close()
 }
 

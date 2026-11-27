@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -148,6 +149,9 @@ func TestCheckURL(t *testing.T) {
 }
 
 func TestLinkFileIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no mode bits: the file is private by the profile folder's permissions")
+	}
 	_, p := newComputer(t, "https://x.test", "ckt_secret")
 	fi, err := os.Stat(p.link())
 	if err != nil {

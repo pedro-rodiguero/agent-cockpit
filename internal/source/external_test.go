@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,9 @@ import (
 )
 
 func TestExternal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the sources in this test are shell scripts")
+	}
 	bin := t.TempDir()
 	script := func(name, body string) { executable(t, filepath.Join(bin, name), body) }
 	script("cockpit-source-reviews", `echo '[{"id":"pr-7","name":"web","detail":"review requested","quiet":true},{"name":"no id"}]'`)
@@ -48,6 +52,9 @@ func TestExternal(t *testing.T) {
 }
 
 func TestExternalKeepsLastResultWhileFailing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the sources in this test are shell scripts")
+	}
 	bin := t.TempDir()
 	path := filepath.Join(bin, "cockpit-source-flaky")
 	executable(t, path, "test -f \"$0.down\" && exit 1\necho '[{\"id\":\"a\"}]'")

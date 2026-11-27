@@ -10,6 +10,7 @@ import (
 func TestLoad(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
 	path := filepath.Join(t.TempDir(), "config.json")
 	if c, err := Load(path); err != nil || c.Theme != "" {
 		t.Fatalf("missing file: %+v %v", c, err)

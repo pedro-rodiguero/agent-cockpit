@@ -12,6 +12,7 @@ import (
 func TestClaudeDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
 	t.Setenv("COCKPIT_CLAUDE_DIRS", "")
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	for _, d := range []string{".claude-work/sessions", ".claude-empty"} {
@@ -28,7 +29,7 @@ func TestClaudeDirs(t *testing.T) {
 	if got := strings.Join(ClaudeDirs(cfg), " "); got != "/c" {
 		t.Errorf("settings: %s", got)
 	}
-	t.Setenv("COCKPIT_CLAUDE_DIRS", "/a:/b")
+	t.Setenv("COCKPIT_CLAUDE_DIRS", "/a"+string(os.PathListSeparator)+"/b")
 	if got := strings.Join(ClaudeDirs(cfg), " "); got != "/a /b" {
 		t.Errorf("override: %s", got)
 	}

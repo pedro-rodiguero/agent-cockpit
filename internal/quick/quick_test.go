@@ -3,6 +3,7 @@ package quick
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -15,6 +16,9 @@ func TestOutputFeedsStdin(t *testing.T) {
 }
 
 func TestOutputKillsAHelperThatHangs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the helper is a shell command")
+	}
 	start := time.Now()
 	_, err := Output("", "/bin/sh", "-c", "sleep 60")
 	if !errors.Is(err, context.DeadlineExceeded) {

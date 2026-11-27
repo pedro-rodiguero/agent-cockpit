@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -192,7 +193,8 @@ func TestSideArrowsPickAgent(t *testing.T) {
 func TestNewPaneStartsOnTheDesktop(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	a, _ := appWithPane() // the selected pane is in /tmp, which must not matter
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
+	a, _ := appWithPane()         // the selected pane is in /tmp, which must not matter
 	press(a, "n")
 	if got := string(a.prompt.text); got != "~/" {
 		t.Fatalf("without a Desktop: %q", got)
@@ -214,6 +216,7 @@ func TestNewPaneStartsOnTheDesktop(t *testing.T) {
 func TestNewPaneStartsAboveTheLastPaneDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
 	tickets := filepath.Join(home, "Desktop", "saas", "tickets")
 	if err := os.MkdirAll(tickets, 0o755); err != nil {
 		t.Fatal(err)
@@ -706,8 +709,12 @@ func lastLine(a *App) string {
 
 // A folder the system will not list says so in the prompt, rather than completing to nothing.
 func TestPathPromptSaysWhenAFolderCannotBeRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not refuse a listing by mode bits")
+	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
 	locked := filepath.Join(home, "Desktop")
 	if err := os.MkdirAll(filepath.Join(locked, "saas"), 0o755); err != nil {
 		t.Fatal(err)

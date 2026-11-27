@@ -3,6 +3,7 @@ package mux
 import (
 	"encoding/json"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,9 @@ import (
 )
 
 func TestSpawnRendersThemedScreen(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
 		Args: []string{"/bin/sh", "-c", `printf '\033[31mred\033[0m plain\r\nline two\033[1;32m ok'; sleep 0.3`}})
@@ -51,6 +55,9 @@ func TestSpawnRendersThemedScreen(t *testing.T) {
 }
 
 func TestSpawnEnvDropsNestingAndTakesProfile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "1")
 	t.Setenv("CLAUDE_CONFIG_DIR", "/from/parent")
@@ -104,6 +111,9 @@ func TestSelectReachesAttachedDashboards(t *testing.T) {
 }
 
 func TestShutdownWaitsForRunningPanes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	stopped := make(chan struct{}, 1)
 	s.stop = func() { stopped <- struct{}{} }
@@ -145,6 +155,9 @@ func TestSocketPathStaysShort(t *testing.T) {
 }
 
 func TestHistoryReadsTheScrollback(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 20, Rows: 5,
 		Args: []string{"/bin/sh", "-c", `i=1; while [ $i -le 10 ]; do printf 'line %d\r\n' $i; i=$((i+1)); done; printf 'end'; sleep 0.3`}})
@@ -183,6 +196,9 @@ func TestHistoryReadsTheScrollback(t *testing.T) {
 // nothing more: otherwise the client keeps an older screen, such as one taken while a program had
 // hidden its cursor to redraw.
 func TestMissedScreenIsSentAgain(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6, Args: []string{"/bin/sh", "-c", "sleep 30"}})
 	if err != nil {

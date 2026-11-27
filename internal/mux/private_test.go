@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,6 +13,9 @@ import (
 // A folder someone else made first (here one of root's) is never used for the socket, by the server or
 // the client: on Linux the fallback lives under a /tmp every user can write to.
 func TestSocketFolderMustBeOwnAndPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows keeps other accounts out with the profile folder's permissions, not an owner and a mode")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root owns the folder used as someone else's")
 	}
@@ -53,6 +57,9 @@ func TestSocketFolderMustBeOwnAndPrivate(t *testing.T) {
 
 // Without a cache folder, the fallback under the temporary folder is per user, not one shared name.
 func TestDirFallbackIsPerUser(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows keeps other accounts out with the profile folder's permissions, not an owner and a mode")
+	}
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CACHE_HOME", "")
 	if got, want := Dir(), filepath.Join(os.TempDir(), fmt.Sprintf("agent-cockpit-%d", os.Getuid())); got != want {

@@ -1,6 +1,7 @@
 package mux
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,9 @@ import (
 
 // A shell pane running a job in front reports that job's command line; the shell alone reports nothing.
 func TestForegroundOfAShellPane(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
 		Args: []string{"/bin/sh", "-c", "set -m; sleep 30 2>/dev/null; sleep 30"}})
@@ -40,6 +44,9 @@ func TestForegroundOfAShellPane(t *testing.T) {
 }
 
 func TestLastIOFollowsActivityCoarsely(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6, Args: []string{"/bin/sh", "-c", "sleep 30"}})
 	if err != nil {
@@ -77,6 +84,9 @@ func TestParsePS(t *testing.T) {
 // A program redrawing after a resize is not activity: otherwise every change to the grid would wake
 // every pane on it.
 func TestRedrawAfterResizeIsNotActivity(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
 		Args: []string{"/bin/sh", "-c", "trap 'echo redrawn' WINCH; while :; do sleep 0.1; done"}})

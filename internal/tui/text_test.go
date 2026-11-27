@@ -48,6 +48,7 @@ func TestFitIsExactWidth(t *testing.T) {
 func TestTilde(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home folder on Windows
 	cases := map[string]string{
 		home:                   "~",
 		home + "/src":          "~/src",

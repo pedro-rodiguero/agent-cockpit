@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/pedro-rodiguero/agent-cockpit/internal/model"
@@ -42,6 +43,9 @@ func TestResumeSpec(t *testing.T) {
 }
 
 func TestResumeCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the command is written for a POSIX shell")
+	}
 	t.Setenv("COCKPIT_CLAUDE_DIRS", "/cfg/.claude:/cfg/.claude-work")
 	s := model.Session{Agent: "claude", NativeID: "abc-1", Cwd: "/my dir/it's", SessionsDir: "/cfg/.claude-work/sessions"}
 	want := `cd '/my dir/it'\''s' && CLAUDE_CONFIG_DIR=/cfg/.claude-work claude --resume abc-1`

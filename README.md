@@ -65,13 +65,14 @@ own, shows each one as a card with its live conversation, and keeps what needs y
 
 ## Requirements
 
-- macOS 13 or later, or Linux
+- macOS 13 or later, Linux, or Windows 10 (1809) or later
 - Go 1.26.11 or later to build; on macOS, the Xcode command line tools (Swift 6.1 or later) for the
   app, whose terminal view is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
 - Any of: [Claude Code](https://docs.claude.com/en/docs/claude-code), Codex CLI, Antigravity CLI
 
-On Linux everything runs in any terminal except what needs macOS: going to a session's terminal tab
-(`o`), tab titles, and the app. Those use AppleScript and AppKit.
+On Linux and Windows everything runs in any terminal except what needs macOS: going to a session's
+terminal tab (`o`), tab titles, and the app. Those use AppleScript and AppKit. Windows support
+is new, so expect rough edges there.
 
 ## Install
 

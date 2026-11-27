@@ -32,8 +32,8 @@ jobs:
         if: runner.os == 'macOS'
         run: make menubar
 
-  # Windows is being ported: everything compiles there and the dashboard runs without panes. This job
-  # keeps it compiling and runs the tests known to pass on Windows; the rest join as they are ported.
+  # Windows: everything builds and every test runs. The tests that need a pseudo-terminal, a shell script
+  # or mode bits skip themselves there, saying why; panes join when the pane server uses ConPTY.
   windows:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -46,11 +46,7 @@ jobs:
           go-version-file: go.mod
       - name: Vet
         run: go vet ./...
+      - name: Test
+        run: go test ./...
       - name: Build
         run: go build ./...
-      - name: Test
-        run: go test ./cmd/cockpit/ ./internal/auth/ ./internal/chat/ ./internal/filelock/ ./internal/peer/ ./internal/tailfile/ ./internal/todo/ ./internal/todoserver/
-      # Not required yet: it shows which packages already pass on Windows, to move into the step above.
-      - name: Test everything
-        continue-on-error: true
-        run: go test ./...

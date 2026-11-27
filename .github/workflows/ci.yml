@@ -50,3 +50,7 @@ jobs:
         run: go build ./...
       - name: Test
         run: go test ./internal/filelock/
+      # Not required yet: it shows which packages already pass on Windows, to move into the step above.
+      - name: Test everything
+        continue-on-error: true
+        run: go test ./...

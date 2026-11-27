@@ -13,7 +13,7 @@ import (
 
 func TestSpawnRendersThemedScreen(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
@@ -56,7 +56,7 @@ func TestSpawnRendersThemedScreen(t *testing.T) {
 
 func TestSpawnEnvDropsNestingAndTakesProfile(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "1")
@@ -112,7 +112,7 @@ func TestSelectReachesAttachedDashboards(t *testing.T) {
 
 func TestShutdownWaitsForRunningPanes(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	stopped := make(chan struct{}, 1)
@@ -156,7 +156,7 @@ func TestSocketPathStaysShort(t *testing.T) {
 
 func TestHistoryReadsTheScrollback(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 20, Rows: 5,
@@ -197,7 +197,7 @@ func TestHistoryReadsTheScrollback(t *testing.T) {
 // hidden its cursor to redraw.
 func TestMissedScreenIsSentAgain(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6, Args: []string{"/bin/sh", "-c", "sleep 30"}})

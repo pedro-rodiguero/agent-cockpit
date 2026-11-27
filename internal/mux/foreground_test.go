@@ -10,7 +10,7 @@ import (
 // A shell pane running a job in front reports that job's command line; the shell alone reports nothing.
 func TestForegroundOfAShellPane(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,
@@ -45,7 +45,7 @@ func TestForegroundOfAShellPane(t *testing.T) {
 
 func TestLastIOFollowsActivityCoarsely(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6, Args: []string{"/bin/sh", "-c", "sleep 30"}})
@@ -85,7 +85,7 @@ func TestParsePS(t *testing.T) {
 // every pane on it.
 func TestRedrawAfterResizeIsNotActivity(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("panes need ConPTY on Windows, which is not ported yet")
+		t.Skip("written for a Unix shell: terminal_windows_test.go covers panes on Windows")
 	}
 	s := newServer()
 	id, err := s.spawn(Msg{Agent: "shell", Cwd: t.TempDir(), Cols: 40, Rows: 6,

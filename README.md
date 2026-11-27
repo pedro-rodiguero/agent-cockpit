@@ -121,6 +121,7 @@ cockpit todo        # the to-do list; `add call the venue @tomorrow`, `done 2`, 
 | `s` | set the selected pane aside in the rail, or bring it back from there |
 | `z` | zoom the selected card · typing goes to a zoomed pane · `z` or `esc` back to all panes |
 | `x` | close a pane (stops its agent) · questions take `y`/`⏎` or `n`/`esc` |
+| `X` | clean up for a new day: close every pane, or with `o` only the ones at rest · takes `y`, not `⏎` |
 | click | select a card; on a running pane, start typing into it · double click copies the word or URL under the pointer, triple click the line |
 | drag | select text inside one pane, copied when you let go · a card's title or the border between two cards arranges them |
 | wheel | scroll a pane back through its history (5000 lines); scrolling to the bottom or typing returns to the live screen. A full-screen program such as Claude Code scrolls itself: it gets the wheel when it asks for the mouse, arrow keys otherwise |

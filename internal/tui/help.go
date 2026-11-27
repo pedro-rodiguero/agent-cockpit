@@ -24,6 +24,7 @@ var helpKeys = [][]keyHint{
 		{"m", "read the session's plan, live as it changes, even before plan mode writes it · r sends feedback"},
 		{"n", "new pane"},
 		{"x", "close a pane, stopping its agent; delete a task"},
+		{"X", "clean up for a new day: close every pane, or only the ones at rest"},
 		{"s", "set a pane aside in the rail, or bring it back · quiet panes go there on their own"},
 		{"", "a quiet ssh pane is offered the rail (y · n · a always); ⏎ brings it back"},
 		{"ctrl-q", "leave a pane, and its zoom; every other key goes to the agent"},

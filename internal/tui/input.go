@@ -62,6 +62,7 @@ const (
 	actGrow
 	actShrink
 	actEvenSizes
+	actCleanup
 )
 
 // binding is a key as navigation mode sees it.
@@ -108,6 +109,7 @@ var navBindings = map[binding]action{
 	{keyRune, ">"}: actGrow,
 	{keyRune, "<"}: actShrink,
 	{keyRune, "="}: actEvenSizes,
+	{keyRune, "X"}: actCleanup,
 }
 
 // navAction maps a key to its action. Alt combinations and pastes do nothing: pasted text must never
@@ -296,6 +298,8 @@ func (a *App) navKey(k key) {
 		a.growCard(1 / growStep)
 	case actEvenSizes:
 		a.resetSizes()
+	case actCleanup:
+		a.confirmCleanup()
 	}
 }
 

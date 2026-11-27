@@ -18,7 +18,7 @@ func isResize(sig os.Signal) bool { return sig == syscall.SIGWINCH }
 func (a *App) pollResize() (stop func()) { return func() {} }
 
 // prepareConsole does nothing where the terminal already speaks escape sequences.
-func prepareConsole(*os.File) (restore func()) { return func() {} }
+func prepareConsole(in, out *os.File) (restore func()) { return func() {} }
 
 // stopProcess ends pid the way closing its Terminal tab would (SIGHUP), escalating to SIGTERM and SIGKILL
 // if it lingers, and returns once it is gone so the resumed copy never runs next to the old one.

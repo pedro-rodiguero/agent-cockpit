@@ -41,7 +41,17 @@ const utf8CodePage = 65001
 
 // prepareConsole makes the console take escape sequences and UTF-8 on its output, which the older
 // console host does only when asked, and returns what puts it back.
-func prepareConsole(out *os.File) (restore func()) {
+//
+// It also turns QuickEdit off on the input. With it on, the older console host takes every click for
+// the start of a text selection and stops the program's output until the selection ends: the dashboard
+// would freeze at the first click, keys and all. The input's mode needs no restoring here: leaving raw
+// mode puts all of it back.
+func prepareConsole(in, out *os.File) (restore func()) {
+	var inMode uint32
+	if hin := windows.Handle(in.Fd()); windows.GetConsoleMode(hin, &inMode) == nil {
+		inMode = inMode&^windows.ENABLE_QUICK_EDIT_MODE | windows.ENABLE_EXTENDED_FLAGS | windows.ENABLE_MOUSE_INPUT
+		_ = windows.SetConsoleMode(hin, inMode)
+	}
 	h := windows.Handle(out.Fd())
 	var mode uint32
 	if windows.GetConsoleMode(h, &mode) != nil {

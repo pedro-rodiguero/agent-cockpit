@@ -66,7 +66,7 @@ func openScreen() (*screen, error) {
 	if detectColorDepth(os.Getenv) == color256 {
 		s.down = newDownsampler()
 	}
-	s.unprepare = prepareConsole(s.out)
+	s.unprepare = prepareConsole(s.in, s.out)
 	s.w = bufio.NewWriterSize(s.out, frameBufSize)
 	s.w.WriteString(enterSeq)
 	s.w.Flush()

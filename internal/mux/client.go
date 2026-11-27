@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -102,7 +101,7 @@ func startServer() error {
 	}
 	cmd := exec.Command(exe, "serve")
 	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}

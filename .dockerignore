@@ -1,0 +1,6 @@
+.git
+bin
+dist
+menubar
+zap
+deploy/todo-server/.env

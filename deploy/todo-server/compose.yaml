@@ -1,0 +1,39 @@
+# Your own to-do server: cockpit-todo-server behind Caddy, which gets and renews the certificate.
+# Start it with ./setup.sh; docs/todo-server.md says what each part is for.
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      TODO_DOMAIN: ${TODO_DOMAIN:?run ./setup.sh first}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  todo:
+    build:
+      context: ../..
+      dockerfile: deploy/todo-server/Dockerfile
+    restart: unless-stopped
+    # The server shares Caddy's network, so it listens on loopback only and is never reachable but
+    # through Caddy. That is also what lets it trust the address Caddy reports for each visitor.
+    network_mode: "service:caddy"
+    depends_on:
+      - caddy
+    environment:
+      TODO_ORIGIN: https://${TODO_DOMAIN:?run ./setup.sh first}
+      TODO_ENC_KEY: ${TODO_ENC_KEY:?run ./setup.sh first}
+      TODO_TRUST_PROXY: caddy
+      TODO_DEFAULT_GROUP: ${TODO_DEFAULT_GROUP:-}
+    volumes:
+      - todo-data:/data
+
+volumes:
+  todo-data:
+  caddy-data:
+  caddy-config:

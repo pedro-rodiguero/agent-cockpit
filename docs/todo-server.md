@@ -10,7 +10,35 @@ iPhone (web app) ──HTTPS──┐
 Mac (cockpit) ──HTTPS─────┘        behind Caddy (TLS)
 ```
 
-## Running it
+## Your own server, the short way
+
+Everyone runs their own server: the list, the account and the keys stay on a machine you control, and
+nothing in cockpit points at anyone else's. On a Linux machine with Docker, ports 80 and 443 open and a
+DNS record pointing your domain at it:
+
+```sh
+git clone https://github.com/pedro-rodiguero/agent-cockpit
+cd agent-cockpit/deploy/todo-server
+./setup.sh todo.example.com
+```
+
+`setup.sh` writes `.env` with the domain and a new key for two-step verification, builds the image, asks
+for the account's password and starts the server behind Caddy, which gets and renews the certificate.
+Then open `https://todo.example.com` on the phone, sign in and add it to the home screen, and on each
+computer run `cockpit todo connect https://todo.example.com` (it asks for a device token: make one in the
+app, Settings › Devices).
+
+| to | run, in `deploy/todo-server` |
+|----|-----|
+| update | `git pull && ./setup.sh` |
+| change the password | `docker compose stop todo && docker compose run --rm todo set-password && docker compose start todo` |
+| turn 2FA off for a lost phone | the same, with `reset-2fa` |
+| back up | the `todo-data` volume and `.env` |
+
+The server shares Caddy's network and listens on loopback only, so it is reachable only through Caddy.
+The image has no shell and runs as a user without privileges.
+
+## Running it without Docker
 
 ```sh
 cockpit-todo-server set-password            # create the account, or reset its password (asks twice)

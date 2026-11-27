@@ -9,17 +9,14 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
 )
 
 // IdleExit is how long the server lingers with no panes and no dashboards before exiting.
@@ -47,10 +44,9 @@ type Server struct {
 }
 
 type pane struct {
-	cmd *exec.Cmd
-	pty *os.File
-	emu *vt.SafeEmulator
-	osc oscFilter // used by pump only
+	term terminal // the program and the pseudo-terminal it runs on
+	emu  *vt.SafeEmulator
+	osc  oscFilter // used by pump only
 
 	mu     sync.Mutex // guards info, dirty, paste, mouse, lastIO and redraw
 	info   PaneInfo
@@ -169,7 +165,7 @@ func (s *Server) handle(conn net.Conn) {
 		case OpInput:
 			if p := s.get(m.ID); p != nil && !p.exited() {
 				p.active()
-				_, _ = p.pty.Write(m.Data)
+				_, _ = p.term.Write(m.Data)
 			}
 		case OpPaste:
 			if p := s.get(m.ID); p != nil && !p.exited() {
@@ -177,7 +173,7 @@ func (s *Server) handle(conn net.Conn) {
 				data := p.paste.wrap(m.Data)
 				p.lastIO = time.Now()
 				p.mu.Unlock()
-				_, _ = p.pty.Write(data)
+				_, _ = p.term.Write(data)
 			}
 		case OpWheel:
 			if p := s.get(m.ID); p != nil && !p.exited() {
@@ -186,7 +182,7 @@ func (s *Server) handle(conn net.Conn) {
 				data := p.mouse.wheel(m.Up, m.X, m.Y, alt)
 				p.mu.Unlock()
 				if data != nil {
-					_, _ = p.pty.Write(data)
+					_, _ = p.term.Write(data)
 				}
 			}
 		case OpResize:
@@ -299,10 +295,8 @@ func (s *Server) spawn(m Msg) (string, error) {
 	}
 	cols, rows := max(minCols, m.Cols), max(minRows, m.Rows)
 
-	cmd := agentCommand(append(append([]string{}, argv...), m.Args...))
-	cmd.Dir = cwd
-	cmd.Env = append(append(paneEnv(), m.Env...), "TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=agent-cockpit")
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+	env := append(append(paneEnv(), m.Env...), "TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=agent-cockpit")
+	f, err := startTerminal(append(append([]string{}, argv...), m.Args...), cwd, env, cols, rows)
 	if err != nil {
 		return "", err
 	}
@@ -315,8 +309,8 @@ func (s *Server) spawn(m Msg) (string, error) {
 	s.nextID++
 	id := strconv.Itoa(s.nextID)
 	now := time.Now()
-	p := &pane{cmd: cmd, pty: f, emu: emu, lastIO: now, info: PaneInfo{
-		ID: id, Agent: m.Agent, Cwd: cwd, PID: cmd.Process.Pid, Cols: cols, Rows: rows,
+	p := &pane{term: f, emu: emu, lastIO: now, info: PaneInfo{
+		ID: id, Agent: m.Agent, Cwd: cwd, PID: f.PID(), Cols: cols, Rows: rows,
 		Started: now, Title: filepath.Base(cwd), LastIO: now,
 	}}
 	s.panes[id] = p
@@ -347,24 +341,11 @@ func (s *Server) spawn(m Msg) (string, error) {
 	return id, nil
 }
 
-// agentCommand runs argv through the user's login shell, so the agent gets the same PATH and
-// environment it would have in a new terminal tab. An empty argv is the login shell itself.
-func agentCommand(argv []string) *exec.Cmd {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/zsh"
-	}
-	if len(argv) == 0 {
-		return exec.Command(shell, "-l")
-	}
-	return exec.Command(shell, append([]string{"-lc", `exec "$0" "$@"`}, argv...)...)
-}
-
 // pump feeds PTY output into the emulator until the program exits, then records its exit code.
 func (s *Server) pump(p *pane) {
 	buf := make([]byte, 64<<10)
 	for {
-		n, err := p.pty.Read(buf)
+		n, err := p.term.Read(buf)
 		if n > 0 {
 			_, _ = p.emu.Write(p.osc.feed(buf[:n]))
 			p.mu.Lock()
@@ -380,11 +361,7 @@ func (s *Server) pump(p *pane) {
 			break
 		}
 	}
-	code := 0
-	var ee *exec.ExitError
-	if err := p.cmd.Wait(); errors.As(err, &ee) {
-		code = ee.ExitCode()
-	}
+	code := p.term.Wait()
 	p.mu.Lock()
 	p.info.Exited, p.info.ExitCode, p.dirty = true, code, true
 	p.mu.Unlock()
@@ -419,7 +396,7 @@ func (p *pane) resize(cols, rows int) {
 	}
 	p.emu.Resize(cols, rows)
 	if !exited {
-		_ = pty.Setsize(p.pty, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+		_ = p.term.Resize(cols, rows)
 	}
 }
 
@@ -473,15 +450,15 @@ func (s *Server) close(id string) {
 	s.lastUse = time.Now()
 	s.mu.Unlock()
 	if !p.exited() {
-		_ = p.cmd.Process.Signal(syscall.SIGHUP)
+		p.term.Hangup()
 		go func() {
 			time.Sleep(3 * time.Second)
 			if !p.exited() {
-				_ = p.cmd.Process.Kill()
+				p.term.Kill()
 			}
 		}()
 	}
-	_ = p.pty.Close()
+	_ = p.term.Close()
 }
 
 // broadcast pushes changed screens and pane-list changes to every attached dashboard.

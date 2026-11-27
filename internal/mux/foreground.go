@@ -42,7 +42,7 @@ func (s *Server) refreshForeground() {
 		if p.exited() || p.snapshot().Agent != "shell" {
 			continue
 		}
-		if pg := p.foregroundGroup(); pg > 0 && pg != p.cmd.Process.Pid {
+		if pg := p.foregroundGroup(); pg > 0 && pg != p.term.PID() {
 			groups[p] = pg
 			pids = append(pids, strconv.Itoa(pg))
 		}

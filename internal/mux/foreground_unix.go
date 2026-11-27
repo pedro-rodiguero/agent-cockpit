@@ -6,7 +6,11 @@ import "golang.org/x/sys/unix"
 
 // foregroundGroup is the terminal's foreground process group, or 0 when it cannot be read.
 func (p *pane) foregroundGroup() int {
-	raw, err := p.pty.SyscallConn() // not Fd, which would switch the pty to blocking reads
+	t, ok := p.term.(*unixTerminal)
+	if !ok {
+		return 0
+	}
+	raw, err := t.File.SyscallConn() // not Fd, which would switch the pty to blocking reads
 	if err != nil {
 		return 0
 	}

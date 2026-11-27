@@ -7,6 +7,7 @@ toolchain go1.27.4
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.7
+	github.com/charmbracelet/x/conpty v0.2.0
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
 	golang.org/x/crypto v0.59.0

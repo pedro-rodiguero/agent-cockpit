@@ -772,7 +772,7 @@ func (pr *prompt) ghost() string {
 	if pr.cycling {
 		return ""
 	}
-	t := string(pr.text)
+	t := filepath.ToSlash(string(pr.text)) // matches are written with forward slashes, whichever was typed
 	if c := extendPath(t, pr.matches); c != t && hasPrefixFold(c, t) {
 		return string([]rune(c)[len(pr.text):])
 	}

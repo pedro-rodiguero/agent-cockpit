@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -46,29 +47,33 @@ func TestFitIsExactWidth(t *testing.T) {
 }
 
 func TestTilde(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home) // the home folder on Windows
+	native := t.TempDir()
+	t.Setenv("HOME", native)
+	t.Setenv("USERPROFILE", native) // the home folder on Windows
+	if got := tilde(filepath.Join(native, "src")); got != "~/src" {
+		t.Errorf("a path as the system writes it: %q", got)
+	}
+	home := filepath.ToSlash(native)
 	cases := map[string]string{
 		home:                   "~",
 		home + "/src":          "~/src",
 		home + "x/src":         home + "x/src",
 		"/elsewhere":           "/elsewhere",
-		filepath.Dir(home):     filepath.Dir(home),
+		path.Dir(home):         path.Dir(home),
 		home + "/Área/projeto": "~/Área/projeto",
 	}
 	for in, want := range cases {
 		if got := tilde(in); got != want {
 			t.Errorf("tilde(%q) = %q, want %q", in, got, want)
 		}
-		if got := untilde(tilde(in)); got != in {
+		if got := filepath.ToSlash(untilde(tilde(in))); got != in {
 			t.Errorf("untilde(tilde(%q)) = %q", in, got)
 		}
 	}
 }
 
 func TestCompleteDirMultibyte(t *testing.T) {
-	root := t.TempDir()
+	root := filepath.ToSlash(t.TempDir()) // as the dashboard writes paths, on Windows too
 	for _, d := range []string{"Área1", "Área2", "Às", ".hidden", "plain"} {
 		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)
@@ -98,7 +103,7 @@ func TestCompleteDirMultibyte(t *testing.T) {
 }
 
 func TestCompleteDirFollowsSymlinksAndKeepsTrailingSlash(t *testing.T) {
-	root := t.TempDir()
+	root := filepath.ToSlash(t.TempDir()) // as the dashboard writes paths, on Windows too
 	if err := os.MkdirAll(filepath.Join(root, "real", "inner"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -112,13 +117,13 @@ func TestCompleteDirFollowsSymlinksAndKeepsTrailingSlash(t *testing.T) {
 		t.Errorf("tab after a slash: %q", got)
 	}
 	home, _ := os.UserHomeDir()
-	if got := untilde("~/x/"); got != home+"/x/" {
+	if got := untilde("~/x/"); got != home+"/x/" && got != home+`\x/` {
 		t.Errorf("untilde dropped the trailing slash: %q", got)
 	}
 }
 
 func TestCompleteDirIgnoresCase(t *testing.T) {
-	root := t.TempDir()
+	root := filepath.ToSlash(t.TempDir()) // as the dashboard writes paths, on Windows too
 	for _, d := range []string{"Desktop", "Dev", "documents", "Área"} {
 		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)

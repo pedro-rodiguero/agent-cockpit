@@ -2,6 +2,8 @@ package tui
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -10,7 +12,7 @@ import (
 )
 
 func TestResumeSpec(t *testing.T) {
-	t.Setenv("COCKPIT_CLAUDE_DIRS", "/cfg/.claude:/cfg/.claude-work")
+	t.Setenv("COCKPIT_CLAUDE_DIRS", "/cfg/.claude"+string(os.PathListSeparator)+"/cfg/.claude-work")
 	cases := []struct {
 		name    string
 		s       model.Session
@@ -21,7 +23,7 @@ func TestResumeSpec(t *testing.T) {
 		{"claude default profile", model.Session{Agent: "claude", NativeID: "abc", PID: 1, Cwd: "/x", SessionsDir: "/cfg/.claude/sessions"},
 			[]string{"--resume", "abc"}, nil, false},
 		{"claude other profile", model.Session{Agent: "claude", NativeID: "abc", PID: 1, Cwd: "/x", SessionsDir: "/cfg/.claude-work/sessions"},
-			[]string{"--resume", "abc"}, []string{"CLAUDE_CONFIG_DIR=/cfg/.claude-work"}, false},
+			[]string{"--resume", "abc"}, []string{"CLAUDE_CONFIG_DIR=" + filepath.FromSlash("/cfg/.claude-work")}, false},
 		{"codex", model.Session{Agent: "codex", NativeID: "r1", PID: 1, Cwd: "/x"}, []string{"resume", "r1"}, nil, false},
 		{"agy", model.Session{Agent: "agy", NativeID: "z", PID: 1, Cwd: "/x"}, nil, nil, true},
 		{"no id", model.Session{Agent: "codex", PID: 1, Cwd: "/x"}, nil, nil, true},

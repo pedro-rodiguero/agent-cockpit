@@ -15,9 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/pedro-rodiguero/agent-cockpit/internal/filelock"
 	"github.com/pedro-rodiguero/agent-cockpit/internal/todo"
 )
 
@@ -157,11 +157,11 @@ func (p Paths) tryLock() (unlock func(), ok bool) {
 	if err != nil {
 		return nil, false
 	}
-	if syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
+	if got, _ := filelock.TryLock(f); !got {
 		f.Close()
 		return nil, false
 	}
-	return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, true
+	return func() { _ = filelock.Unlock(f); f.Close() }, true
 }
 
 // client never follows a redirect: the token goes to the configured server and nowhere else.

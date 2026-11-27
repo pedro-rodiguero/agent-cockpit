@@ -19,8 +19,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/pedro-rodiguero/agent-cockpit/internal/filelock"
 )
 
 // keepDone is how long a completed task stays in the file before it moves to the history file.
@@ -243,12 +244,12 @@ func (s *Store) lockFile() (unlock func(), err error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := filelock.Lock(f); err != nil {
 		f.Close()
 		return nil, err
 	}
 	return func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = filelock.Unlock(f)
 		f.Close()
 	}, nil
 }

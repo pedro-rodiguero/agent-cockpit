@@ -1,14 +1,6 @@
 package source
 
-import (
-	"bufio"
-	"bytes"
-	"context"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
-)
+import "strings"
 
 // Proc is one row of the process table.
 type Proc struct {
@@ -19,32 +11,23 @@ type Proc struct {
 	Cmd  string // basename of argv[0], or of argv[1] when argv[0] is an interpreter (node, python, bun)
 }
 
-// listProcs reads the process table with ps(1), which needs no extra permissions.
-func listProcs(ctx context.Context) (map[int]Proc, error) {
-	out, err := exec.CommandContext(ctx, "ps", append(psAll, "-o", "pid=,ppid=,tty=,args=")...).Output()
-	if err != nil {
-		return nil, err
+// commandName is the name a process goes by: the basename of argv[0] without Windows' .exe, or of
+// argv[1] when argv[0] is an interpreter running a script.
+func commandName(args []string) string {
+	cmd := baseName(args[0])
+	if (cmd == "node" || strings.HasPrefix(cmd, "python") || cmd == "bun") && len(args) > 1 {
+		cmd = baseName(args[1])
 	}
-	procs := map[int]Proc{}
-	sc := bufio.NewScanner(bytes.NewReader(out))
-	sc.Buffer(make([]byte, 1<<20), 1<<20)
-	for sc.Scan() {
-		f := strings.Fields(sc.Text())
-		if len(f) < 4 {
-			continue
-		}
-		pid, _ := strconv.Atoi(f[0])
-		ppid, _ := strconv.Atoi(f[1])
-		args := f[3:]
-		cmd := filepath.Base(args[0])
-		if (cmd == "node" || strings.HasPrefix(cmd, "python") || cmd == "bun") && len(args) > 1 {
-			cmd = filepath.Base(args[1])
-		}
-		tty := f[2]
-		if tty == "??" || tty == "?" { // no terminal: macOS and Linux spellings
-			tty = ""
-		}
-		procs[pid] = Proc{PID: pid, PPID: ppid, TTY: tty, Args: strings.Join(args, " "), Cmd: cmd}
+	return cmd
+}
+
+// baseName is the last element of a path written with either kind of slash, without a final .exe.
+func baseName(path string) string {
+	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
+		path = path[i+1:]
 	}
-	return procs, nil
+	if len(path) > 4 && strings.EqualFold(path[len(path)-4:], ".exe") {
+		path = path[:len(path)-4]
+	}
+	return path
 }

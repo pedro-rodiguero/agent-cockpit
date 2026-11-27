@@ -21,8 +21,16 @@ const (
 	syncBegin = "\x1b[?2026h" // synchronized update: the terminal shows the frame only when it is complete
 	syncEnd   = "\x1b[?2026l"
 
+	// The cursor's shape (DECSCUSR): a block that stays lit, one that blinks, and the terminal's own.
+	cursorSteady  = "\x1b[2 q"
+	cursorBlink   = "\x1b[1 q"
+	cursorDefault = "\x1b[0 q"
+
 	frameBufSize = 256 << 10 // one full frame of a large window fits without intermediate flushes
 )
+
+// ownTermProgram is the TERM_PROGRAM the menu bar app gives its dashboard window.
+const ownTermProgram = "agent-cockpit"
 
 // fallbackCols and fallbackRows are the window size assumed when the terminal does not report one (for
 // instance when stdout is redirected), so the dashboard still renders something readable.
@@ -33,18 +41,22 @@ const (
 
 // screen owns the real terminal: raw mode, alternate screen, and line-diffed frames.
 type screen struct {
-	in, out   *os.File
-	restore   *term.State
-	w         *bufio.Writer
-	prev      []string
-	pw, ph    int
-	pcur      cursor       // the cursor the previous frame left
-	down      *downsampler // set when the terminal cannot show 24-bit color
+	in, out *os.File
+	restore *term.State
+	w       *bufio.Writer
+	prev    []string
+	pw, ph  int
+	pcur    cursor       // the cursor the previous frame left
+	down    *downsampler // set when the terminal cannot show 24-bit color
+	// ownWindow is the menu bar app's dashboard window. Its cursor blinks on a clock of its own that
+	// typing does not restart, so a cursor that is being typed at spends half the time unlit: there the
+	// dashboard holds the cursor lit while the person acts and lets it blink again afterwards.
+	ownWindow bool
 	closeOnce sync.Once
 }
 
 func openScreen() (*screen, error) {
-	s := &screen{in: os.Stdin, out: os.Stdout}
+	s := &screen{in: os.Stdin, out: os.Stdout, ownWindow: os.Getenv("TERM_PROGRAM") == ownTermProgram}
 	st, err := term.MakeRaw(int(s.in.Fd()))
 	if err != nil {
 		return nil, err
@@ -64,6 +76,9 @@ func openScreen() (*screen, error) {
 // middle of a frame.
 func (s *screen) close() {
 	s.closeOnce.Do(func() {
+		if s.ownWindow {
+			_, _ = s.out.WriteString(cursorDefault)
+		}
 		_, _ = s.out.WriteString(leaveSeq)
 		_ = term.Restore(int(s.in.Fd()), s.restore)
 	})
@@ -79,8 +94,9 @@ func (s *screen) size() (int, int) {
 }
 
 type cursor struct {
-	x, y int
-	show bool
+	x, y   int
+	show   bool
+	steady bool // lit without blinking, while the person types
 }
 
 // repaint makes the next frame redraw every line, after a change of theme.
@@ -117,6 +133,11 @@ func (s *screen) frame(lines []string, w, h int, cur cursor) {
 		fmt.Fprintf(s.w, "\x1b[%d;1H%s\x1b[0m", i+1, out)
 	}
 	if cur.show {
+		if s.ownWindow && cur.steady {
+			s.w.WriteString(cursorSteady)
+		} else if s.ownWindow {
+			s.w.WriteString(cursorBlink)
+		}
 		fmt.Fprintf(s.w, "\x1b[%d;%dH\x1b[?25h", cur.y+1, cur.x+1)
 	}
 	s.w.WriteString(syncEnd)

@@ -60,6 +60,8 @@ func firstOf(v ...string) string {
 
 func (a *App) draw() {
 	lines, cur := a.compose()
+	// For actingFor after a key the cursor stays lit; the clock's next frame lets it blink again.
+	cur.steady = cur.show && time.Since(a.lastInput) < actingFor
 	a.highlight(lines)
 	a.dragGhost(lines)
 	a.scr.frame(lines, a.w, a.h, cur)

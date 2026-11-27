@@ -38,6 +38,30 @@ func TestUnchangedFrameWritesNothing(t *testing.T) {
 	}
 }
 
+// In the app's own window the cursor stays lit while the person types and blinks again afterwards, the
+// change alone being worth a frame. Another terminal's cursor is left as the person set it.
+func TestCursorStaysLitWhileTyping(t *testing.T) {
+	var out bytes.Buffer
+	s := &screen{w: bufio.NewWriter(&out), ownWindow: true}
+	lines := []string{"header", "card", "footer"}
+	s.frame(lines, 10, 3, cursor{x: 2, y: 1, show: true, steady: true})
+	if got := out.String(); !strings.Contains(got, cursorSteady) || strings.Contains(got, cursorBlink) {
+		t.Fatalf("typing: %q", got)
+	}
+	out.Reset()
+	s.frame(lines, 10, 3, cursor{x: 2, y: 1, show: true})
+	if got := out.String(); !strings.Contains(got, cursorBlink) || strings.Contains(got, cursorSteady) {
+		t.Fatalf("after typing: %q", got)
+	}
+
+	out.Reset()
+	other := &screen{w: bufio.NewWriter(&out)}
+	other.frame(lines, 10, 3, cursor{x: 2, y: 1, show: true, steady: true})
+	if got := out.String(); strings.Contains(got, cursorSteady) || strings.Contains(got, cursorBlink) {
+		t.Fatalf("another terminal: %q", got)
+	}
+}
+
 // Frames follow the person at full rate and pane output at a calmer one.
 func TestFrameRateFollowsThePerson(t *testing.T) {
 	a := &App{}

@@ -675,29 +675,30 @@ func TestPathCompletesAsTyped(t *testing.T) {
 		t.Fatalf("footer does not list the matches: %q", foot)
 	}
 
+	shown := filepath.ToSlash(root) // once completed, the path is written with forward slashes
 	press(a, "\t")
-	if string(pr.text) != root+"/alp" {
+	if string(pr.text) != shown+"/alp" {
 		t.Fatalf("first tab: %q", string(pr.text))
 	}
 	press(a, "\t", "\t")
-	if string(pr.text) != root+"/alps/" || !pr.cycling {
+	if string(pr.text) != shown+"/alps/" || !pr.cycling {
 		t.Fatalf("tab should cycle to the second match: %q", string(pr.text))
 	}
 	press(a, "\x1b[Z")
-	if string(pr.text) != root+"/alpha/" {
+	if string(pr.text) != shown+"/alpha/" {
 		t.Fatalf("shift-tab should go back: %q", string(pr.text))
 	}
 	a.onKeys([]key{{code: keyEsc}})
-	if string(pr.text) != root+"/alp" || a.prompt == nil {
+	if string(pr.text) != shown+"/alp" || a.prompt == nil {
 		t.Fatalf("esc while cycling should restore the typed text: %q", string(pr.text))
 	}
 
 	press(a, "\x7f", "\x7f", "\x7f", "l", "\t")
-	if string(pr.text) != root+"/link/" {
+	if string(pr.text) != shown+"/link/" {
 		t.Fatalf("a symlink to a directory should complete: %q", string(pr.text))
 	}
 	press(a, "\t")
-	if string(pr.text) != root+"/link/inner/" {
+	if string(pr.text) != shown+"/link/inner/" {
 		t.Fatalf("tab after a slash: %q", string(pr.text))
 	}
 }

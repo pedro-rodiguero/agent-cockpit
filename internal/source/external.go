@@ -40,7 +40,7 @@ type External struct {
 
 // Name is the part of the executable name after ExternalPrefix.
 func (e *External) Name() string {
-	return strings.TrimPrefix(filepath.Base(e.Path), ExternalPrefix)
+	return strings.TrimPrefix(programName(filepath.Base(e.Path)), ExternalPrefix)
 }
 
 func (e *External) Collect(ctx context.Context, env *Env) ([]model.Session, error) {
@@ -116,7 +116,7 @@ func FindExternal(path string) []*External {
 				continue
 			}
 			full := filepath.Join(dir, name)
-			if fi, err := os.Stat(full); err != nil || fi.IsDir() || fi.Mode()&0o111 == 0 {
+			if fi, err := os.Stat(full); err != nil || fi.IsDir() || !runnable(fi) {
 				continue
 			}
 			seen[name] = true

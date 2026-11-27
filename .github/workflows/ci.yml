@@ -49,7 +49,7 @@ jobs:
       - name: Build
         run: go build ./...
       - name: Test
-        run: go test ./internal/filelock/
+        run: go test ./cmd/cockpit/ ./internal/auth/ ./internal/chat/ ./internal/filelock/ ./internal/peer/ ./internal/tailfile/ ./internal/todo/ ./internal/todoserver/
       # Not required yet: it shows which packages already pass on Windows, to move into the step above.
       - name: Test everything
         continue-on-error: true

@@ -77,8 +77,10 @@ On Linux everything runs in any terminal except what needs macOS: going to a ses
 
 **Download:** each [release](https://github.com/pedro-rodiguero/agent-cockpit/releases) has
 `Agent-Cockpit-<version>-macos.zip` (the app, with `cockpit` inside, for Apple silicon and Intel) and
-`cockpit-<version>-<os>-<arch>.tar.gz` (`cockpit` and `cockpit-todo-server`) for macOS and Linux, with
-`SHA256SUMS`. The app is not notarized yet: the first time, open it with right click › Open. For `cockpit` in the terminal, link the one inside the app:
+`cockpit-<version>-<os>-<arch>.tar.gz` (`cockpit` and `cockpit-todo-server`) for macOS and Linux, and a
+`.zip` with the same two for Windows, with `SHA256SUMS`. Windows is new: the dashboard and panes run in
+Windows Terminal, the menu bar app is macOS only, and the files are not signed, so Windows asks before
+the first run. The app is not notarized yet: the first time, open it with right click › Open. For `cockpit` in the terminal, link the one inside the app:
 `ln -s "/Applications/Agent Cockpit.app/Contents/MacOS/cockpit" /usr/local/bin/cockpit`.
 
 **From source:**

@@ -3,7 +3,8 @@
 cockpit reads files and sockets that belong to other tools. Most of them are internal to those tools,
 not documented interfaces, so a new release can change them. This page lists exactly what cockpit relies
 on, so a breakage can be traced quickly. Last checked with Claude Code 2.1.330, Codex CLI 0.167.1 and
-Antigravity CLI 1.5.10, on macOS 15. Linux is built and tested in CI.
+Antigravity CLI 1.5.10, on macOS 15. Linux and Windows are built and tested in CI; on Windows the dashboard and panes were also
+run by hand in Windows Terminal.
 
 ## Claude Code
 

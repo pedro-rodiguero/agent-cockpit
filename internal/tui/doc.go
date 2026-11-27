@@ -80,7 +80,7 @@ func plansDirectory(settings string) string {
 // that leads out of the project is not.
 func insideDir(dir, p string) bool {
 	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(p))
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // validSlug reports whether a plan name read from a transcript is one Claude Code would write: letters,

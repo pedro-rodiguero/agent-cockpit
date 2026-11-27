@@ -8,9 +8,11 @@ import (
 	"syscall"
 )
 
-// tilde shortens a path under the home directory to "~/...".
+// tilde shortens a path under the home directory to "~/...". The dashboard writes paths with forward
+// slashes everywhere, Windows included, where the system takes either kind.
 func tilde(p string) string {
 	home, _ := os.UserHomeDir()
+	p, home = filepath.ToSlash(p), filepath.ToSlash(home)
 	if p == home {
 		return "~"
 	}
@@ -26,7 +28,7 @@ func untilde(p string) string {
 	if p == "~" {
 		return home
 	}
-	if strings.HasPrefix(p, "~/") {
+	if strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
 		return home + p[1:] // not filepath.Join, which would drop a trailing "/"
 	}
 	return p

@@ -20,7 +20,7 @@ func ensurePrivateDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	if fi.Mode().Perm()&0o077 != 0 {
+	if !private(fi) {
 		return os.Chmod(dir, 0o700)
 	}
 	return nil
@@ -32,7 +32,7 @@ func checkPrivateDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	if fi.Mode().Perm()&0o077 != 0 {
+	if !private(fi) {
 		return fmt.Errorf("%s can be entered by other users (mode %o); refusing to use it", dir, fi.Mode().Perm())
 	}
 	return nil

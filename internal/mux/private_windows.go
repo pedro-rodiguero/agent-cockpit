@@ -23,3 +23,6 @@ func ownDir(dir string) (os.FileInfo, error) {
 // samePeer accepts the connection: Windows does not say who is at the other end of a Unix socket, so the
 // folder the socket is in, which only this person can enter, is what keeps others out.
 func samePeer(net.Conn) error { return nil }
+
+// private is always true on Windows, whose folders have no mode to read: see ownDir.
+func private(os.FileInfo) bool { return true }

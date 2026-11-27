@@ -47,3 +47,6 @@ func samePeer(conn net.Conn) error {
 	}
 	return nil
 }
+
+// private reports whether only its owner can enter the directory.
+func private(fi os.FileInfo) bool { return fi.Mode().Perm()&0o077 == 0 }

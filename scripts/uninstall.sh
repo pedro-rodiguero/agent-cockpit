@@ -14,7 +14,8 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 if [[ "$(uname -s)" == Darwin ]]; then
 	launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 	rm -f "$PLIST"
-	pkill -f "$APP/Contents/MacOS/AgentCockpit" 2>/dev/null || true
+	# ps, not pkill, which leaves out its own ancestors: the app is one when this runs from a pane.
+	ps -axo pid=,command= | awk -v bin="$APP/Contents/MacOS/AgentCockpit" '{ pid = $1; $1 = ""; sub(/^ +/, "") } index($0, bin) == 1 { print pid }' | xargs kill 2>/dev/null || true
 	rm -rf "$APP"
 	echo "✓ removed $APP and its login item"
 fi

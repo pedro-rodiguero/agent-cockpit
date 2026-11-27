@@ -75,21 +75,25 @@ EOF
 # app would only bring that one forward and the new build would not start. Its dashboard, if open, is
 # opened again afterwards.
 BIN="$APP/Contents/MacOS/AgentCockpit"
+# The running app is found with ps, not pgrep: pgrep leaves out its own ancestors, and the app is one
+# whenever this script is started from a pane, so the old app would stay and the new build never start.
+app_pids() { ps -axo pid=,command= | awk -v bin="$BIN" '{ pid = $1; $1 = ""; sub(/^ +/, "") } index($0, bin) == 1 { print pid }'; }
+has_dashboard() { ps -axo ppid=,command= | awk -v parent="$1" -v bin="$PREFIX/cockpit" '{ ppid = $1; $1 = ""; sub(/^ +/, "") } ppid == parent && index($0, bin) == 1 { found = 1 } END { exit !found }'; }
 had_dashboard=0
-for pid in $(pgrep -f "$BIN" || true); do
-  pgrep -P "$pid" -f "$PREFIX/cockpit" >/dev/null && had_dashboard=1
+for pid in $(app_pids); do
+  has_dashboard "$pid" && had_dashboard=1
   kill "$pid" 2>/dev/null || true
 done
 for _ in $(seq 50); do
-  pgrep -f "$BIN" >/dev/null || break
+  [ -z "$(app_pids)" ] && break
   sleep 0.1
 done
-pkill -9 -f "$BIN" 2>/dev/null || true
+for pid in $(app_pids); do kill -9 "$pid" 2>/dev/null || true; done
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 if [ "$had_dashboard" = 1 ]; then
   for _ in $(seq 50); do
-    pgrep -f "$BIN" >/dev/null && break
+    [ -n "$(app_pids)" ] && break
     sleep 0.1
   done
   open -a "$APP"

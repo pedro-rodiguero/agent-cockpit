@@ -52,6 +52,7 @@ type screen struct {
 	// typing does not restart, so a cursor that is being typed at spends half the time unlit: there the
 	// dashboard holds the cursor lit while the person acts and lets it blink again afterwards.
 	ownWindow bool
+	unprepare func() // undoes what the console needed to show the dashboard; nil when nothing did
 	closeOnce sync.Once
 }
 
@@ -65,6 +66,7 @@ func openScreen() (*screen, error) {
 	if detectColorDepth(os.Getenv) == color256 {
 		s.down = newDownsampler()
 	}
+	s.unprepare = prepareConsole(s.out)
 	s.w = bufio.NewWriterSize(s.out, frameBufSize)
 	s.w.WriteString(enterSeq)
 	s.w.Flush()
@@ -81,6 +83,9 @@ func (s *screen) close() {
 		}
 		_, _ = s.out.WriteString(leaveSeq)
 		_ = term.Restore(int(s.in.Fd()), s.restore)
+		if s.unprepare != nil {
+			s.unprepare()
+		}
 	})
 }
 

@@ -354,17 +354,19 @@ func (a *App) readInput() {
 // so SIGINT only arrives from outside, like SIGTERM and SIGHUP (the terminal closing).
 func (a *App) watchSignals() (stop func()) {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGWINCH, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
+	signal.Notify(sigs, append([]os.Signal{syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT}, resizeSignals...)...)
 	a.goSafe(func() {
 		for sig := range sigs {
-			if sig == syscall.SIGWINCH {
+			if isResize(sig) {
 				a.post(event{kind: evResize})
 			} else {
 				a.post(event{kind: evQuit})
 			}
 		}
 	})
+	stopPolling := a.pollResize()
 	return func() {
+		stopPolling()
 		signal.Stop(sigs)
 		close(sigs)
 	}
